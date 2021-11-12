@@ -192,7 +192,7 @@ class GolfGame:
                     self.logger.info("{} had exceptions {} times".format(self.player_names[player_idx], player_error_count))
 
             for player_idx, player_played in enumerate(self.played):
-                penalties = sum([1 for x in player_played if not x[3]])
+                penalties = sum([1 for x in player_played if not x["admissible"]])
                 if penalties > 0:
                     self.logger.info("{} had {} penalties".format(self.player_names[player_idx], penalties))
 
@@ -317,11 +317,22 @@ class GolfGame:
                 if self.use_gui:
                     self.golf_app.set_label_text("{}, ({:.2f},{:.2f})".format(self.golf_app.get_label_text(), float(distance), float(angle)))
                 segment_air, segment_land, final_point, admissible, reached_target = self.__move(distance, angle, player_idx)
+                
+                step_play_dict = dict()                
+                step_play_dict["segment_air"]= segment_air
+                step_play_dict["segment_land"]= segment_land
+                step_play_dict["final_point"]= final_point
+                step_play_dict["admissible"]= admissible
+                step_play_dict["reached_target"]= reached_target
+                
                 if admissible:
                     self.curr_locs[player_idx] = final_point
-                self.played[player_idx].append((segment_air, segment_land, final_point, admissible, reached_target))
+
+                self.played[player_idx].append(step_play_dict)
+
                 if do_update and self.use_gui:
-                    self.golf_app.plot(segment_air, segment_land, admissible, len(self.played[player_idx]))
+                    self.golf_app.plot(step_play_dict, len(self.played[player_idx]))
+                
                 if reached_target:
                     self.logger.info("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
                     if self.use_gui:
