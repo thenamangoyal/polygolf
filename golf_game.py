@@ -283,6 +283,8 @@ class GolfGame:
                 if admissible:
                     self.curr_locs[player_idx] = final_point
                 self.played[player_idx].append((segment_air, segment_land, final_point, admissible, reached_target))
+                if do_update and self.use_gui:
+                    self.golf_app.plot(segment_air, segment_land, admissible, len(self.played[player_idx]))
                 if reached_target:
                     self.logger.info("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
                     self.golf_app.set_label_text("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
@@ -300,7 +302,6 @@ class GolfGame:
                 pass_next = True
 
         if do_update and self.use_gui:
-            self.golf_app.plot(segment_air, segment_land, admissible)
             self.golf_app.update_score_table()
 
         return pass_next
