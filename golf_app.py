@@ -163,44 +163,35 @@ class GolfApp(App):
         self.golf_game.play_all()
 
     def plot(self, segment_air, segment_land, admissible, idx):
-        if admissible:
-            if isinstance(segment_air, sympy.geometry.Segment2D):
-                sa = self.draw_line(segment_air)
-                sa.set_stroke(3, "rgba(0,0,0, 0.1)")
-                self.svgplot.append(sa)
-            if isinstance(segment_land, sympy.geometry.Segment2D):
-                sl = self.draw_line(segment_land)
-                sl.set_stroke(3, "rgba(0,0,0, 1)")
-                self.svgplot.append(sl)
-                text = self.draw_text(segment_land.midpoint, str(idx))
-                text.set_stroke(1, "rgba(0,0,0, 1)")
-                self.svgplot.append(text)
-            elif isinstance(segment_land, sympy.geometry.Point2D):
-                sl = self.draw_point(segment_land)
-                sl.set_stroke(3, "rgba(0,0,0, 1)")
-                self.svgplot.append(sl)
-                text = self.draw_text(segment_land, str(idx))
-                text.set_stroke(1, "rgba(0,0,0, 1)")
-                self.svgplot.append(text)
-        else:
-            if isinstance(segment_air, sympy.geometry.Segment2D):
-                sa = self.draw_line(segment_air)
-                sa.set_stroke(3, "rgba(255,0,0, 0.2)")
-                self.svgplot.append(sa)
-            if isinstance(segment_land, sympy.geometry.Segment2D):
-                sl = self.draw_line(segment_land)
-                sl.set_stroke(3, "rgba(255,0,0, 1)")
-                self.svgplot.append(sl)
-                text = self.draw_text(segment_land.midpoint, str(idx))
-                text.set_stroke(1, "rgba(255,0,0, 1)")
-                self.svgplot.append(text)
-            elif isinstance(segment_land, sympy.geometry.Point2D):
-                sl = self.draw_point(segment_land)
-                sl.set_stroke(3, "rgba(255,0,0, 1)")
-                self.svgplot.append(sl)
-                text = self.draw_text(segment_land, str(idx))
-                text.set_stroke(1, "rgba(255,0,0, 1)")
-                self.svgplot.append(text)
+        base_stroke_color = "0,0,0"
+        if not admissible:
+            base_stroke_color = "255,0,0"
+        stroke_color_air = "rgba({}, 0.2)".format(base_stroke_color)
+        stroke_color_land = "rgba({}, 1)".format(base_stroke_color)
+        
+        if isinstance(segment_air, sympy.geometry.Segment2D):
+            sa = self.draw_line(segment_air)
+            sa.set_stroke(3, stroke_color_air)
+            self.svgplot.append(sa)
+        elif isinstance(segment_air, sympy.geometry.Point2D):
+            sa = self.draw_point(segment_air)
+            sa.set_stroke(3, stroke_color_air)
+            self.svgplot.append(sa)
+
+        if isinstance(segment_land, sympy.geometry.Segment2D):
+            sl = self.draw_line(segment_land)
+            sl.set_stroke(3, stroke_color_land)
+            self.svgplot.append(sl)
+            text = self.draw_text(segment_land.midpoint, str(idx))
+            text.set_stroke(1, stroke_color_land)
+            self.svgplot.append(text)
+        elif isinstance(segment_land, sympy.geometry.Point2D):
+            sl = self.draw_point(segment_land)
+            sl.set_stroke(3, stroke_color_land)
+            self.svgplot.append(sl)
+            text = self.draw_text(segment_land, str(idx))
+            text.set_stroke(1, stroke_color_land)
+            self.svgplot.append(text)
 
     def update_score_table(self):
         for player_idx, score in enumerate(self.golf_game.scores):
