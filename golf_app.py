@@ -172,11 +172,9 @@ class GolfApp(App):
             self.display_player(player_idx)
 
     def play_step_bt_press(self, widget):
-        self.match_display_with_game()
         self.golf_game.play(run_stepwise=True)
 
     def play_turn_bt_press(self, widget):
-        self.match_display_with_game()
         self.golf_game.play(run_stepwise=False)
 
     def play_all_bt_press(self, widget):
