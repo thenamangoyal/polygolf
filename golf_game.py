@@ -193,6 +193,7 @@ class GolfGame:
             while not self.is_game_ended():
                 self.play(run_stepwise=False, do_update=False)
             if self.use_gui:
+                self.golf_app.display_player(len(self.player_names)-1)
                 self.golf_app.update_score_table()
             self.__game_end()
         elif not self.end_message_printed:
