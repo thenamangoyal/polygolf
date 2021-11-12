@@ -1,3 +1,9 @@
+.tophbox {
+    width: 50vw;
+    text-align: center;
+    margin: auto
+}
+
 .hoverable:hover {
     opacity: 1;
     background: rgba(0, 0, 0, 0.5);
@@ -70,4 +76,29 @@ button:active {
 
 .checkbox input[type='checkbox']:checked {
     background: #2196F3;
+}
+
+@media (max-width:768px) {
+
+    .tophbox {
+        width: 80vw;
+    }
+    .checkbox p {
+        width: 10vw;
+        margin-left: 2px;
+    }
+  
+}
+
+@media (min-width:768px) and (max-width:1024px) {
+
+    .tophbox {
+        width: 70vw;
+    }
+
+    .checkbox p {
+        width: 20vw;
+        margin-left: 2px;
+    }
+  
 }

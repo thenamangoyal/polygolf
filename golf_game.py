@@ -93,6 +93,11 @@ class GolfGame:
     def set_app(self, golf_app):
         self.golf_app = golf_app
 
+    def get_current_player(self):
+        if self.next_player is not None:
+            return self.player_names[self.next_player]
+        return None
+
     def __add_players(self, player_list):
         player_count = dict()
         for player_name in player_list:
@@ -179,7 +184,6 @@ class GolfGame:
             if self.use_gui:
                 self.golf_app.set_label_text("Next turn {}".format(self.player_names[self.next_player]))
 
-
     def play_all(self):
         if not self.is_game_ended():
             self.logger.debug("Playing all turns")
@@ -190,7 +194,6 @@ class GolfGame:
             self.__game_end()
         elif not self.end_message_printed:
             self.__game_end()
-
 
     def play(self, run_stepwise=False, do_update=True):
         if not self.processing_turn:

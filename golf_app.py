@@ -35,14 +35,23 @@ class GolfApp(App):
         mainContainer.style['justify-content'] = 'center'
         mainContainer.style['align-items'] = 'center'
 
-        bt_hbox = gui.HBox(width="40%", style={'text-align': 'center', 'margin': 'auto'})
+        bt_hbox = gui.HBox()
+        bt_hbox.attributes["class"] = "tophbox"
         play_step_bt = gui.Button("Play Step")
         play_turn_bt = gui.Button("Play Turn")
         play_all_bt = gui.Button("Play All")
 
         self.automatic_play = gui.CheckBoxLabel("Play Automatically", checked=start_automatic)
         self.automatic_play.attributes["class"] = "checkbox"
-        bt_hbox.append([play_step_bt, play_turn_bt, play_all_bt, self.automatic_play])
+
+        self.view_drop_down = gui.DropDown(style={'padding': '5px', 'text-align': 'center', })
+        for player_idx, player_name in enumerate(self.golf_game.player_names):
+            self.view_drop_down.append(player_name, player_idx)
+
+        self.view_drop_down.select_by_value(self.golf_game.get_current_player())
+        self.view_drop_down.onchange.do(self.view_drop_down_changed)
+
+        bt_hbox.append([play_step_bt, play_turn_bt, play_all_bt, self.automatic_play, self.view_drop_down])
 
         play_step_bt.onclick.do(self.play_step_bt_press)
         play_turn_bt.onclick.do(self.play_turn_bt_press)
@@ -51,8 +60,8 @@ class GolfApp(App):
         self.labels = []
         self.labels.append(gui.Label("Polygolf: Ready to start", style={'margin': '5px auto'}))
         if self.golf_game.next_player is not None:
-            self.golf_game.logger.debug("First turn {}".format(self.golf_game.player_names[self.golf_game.next_player]))
-            self.set_label_text("{}, First turn {}".format(self.get_label_text(), self.golf_game.player_names[self.golf_game.next_player]))
+            self.golf_game.logger.debug("First turn {}".format(self.golf_game.get_current_player()))
+            self.set_label_text("{}, First turn {}".format(self.get_label_text(), self.golf_game.get_current_player()))
         for label in self.labels:
             mainContainer.append(label)
 
@@ -68,6 +77,22 @@ class GolfApp(App):
         # screen_width = 1000
         # screen_height = 600
         # svgplot.set_viewbox(0, 0, screen_width, screen_height)
+
+        self.reset_svgplot()
+
+        mainContainer.append(self.svgplot)
+        return mainContainer
+
+    def idle(self):
+        if not self.golf_game.is_game_ended():
+            if self.automatic_play.get_value():
+                self.golf_game.play(run_stepwise=True)
+        else:
+            self.automatic_play.set_value(False)
+
+    def reset_svgplot(self):
+        self.svgplot.empty()
+
         bounds = self.golf_game.golf.golf_map.bounds
         xmin, ymin, xmax, ymax = list(map(float, bounds))
         p = self.draw_polygon(self.golf_game.golf.golf_map)
@@ -95,15 +120,9 @@ class GolfApp(App):
         pe = self.draw_point(golf_target)
         self.svgplot.append(pe)
 
-        mainContainer.append(self.svgplot)
-        return mainContainer
-
-    def idle(self):
-        if not self.golf_game.is_game_ended():
-            if self.automatic_play.get_value():
-                self.golf_game.play(run_stepwise=True)
-        else:
-            self.automatic_play.set_value(False)
+    def view_drop_down_changed(self, widget, value):
+        self.reset_svgplot()
+        player_idx = widget.get_key()
 
     def play_step_bt_press(self, widget):
         self.golf_game.play(run_stepwise=True)
@@ -138,7 +157,7 @@ class GolfApp(App):
         for player_idx, score in enumerate(self.golf_game.scores):
             self.score_table.item_at(0, player_idx).set_text("{}, {}".format(self.golf_game.player_names[player_idx], self.golf_game.skills[player_idx]))
             self.score_table.item_at(1, player_idx).set_text("{}, {}".format(score, self.golf_game.player_states[player_idx]))
-    
+
     def set_label_text(self, text, label_num=0):
         self.labels[label_num].set_text(text)
 
