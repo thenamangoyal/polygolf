@@ -59,6 +59,7 @@ class GolfApp(App):
         mainContainer.append(bt_hbox)
         self.labels = []
         self.labels.append(gui.Label("Polygolf: Ready to start", style={'margin': '5px auto'}))
+        self.labels.append(gui.Label("", style={'margin': '5px auto'}))
         if self.golf_game.next_player is not None:
             self.golf_game.logger.debug("First turn {}".format(self.golf_game.get_current_player()))
             self.set_label_text("{}, First turn {}".format(self.get_label_text(), self.golf_game.get_current_player()))
@@ -78,7 +79,8 @@ class GolfApp(App):
         # screen_height = 600
         # svgplot.set_viewbox(0, 0, screen_width, screen_height)
 
-        self.reset_svgplot()
+        self.current_player_displayed = self.golf_game.get_current_player_idx()
+        self.display_player(self.current_player_displayed)
 
         mainContainer.append(self.svgplot)
         return mainContainer
@@ -120,14 +122,30 @@ class GolfApp(App):
         pe = self.draw_point(golf_target)
         self.svgplot.append(pe)
 
-    def view_drop_down_changed(self, widget, value):
+    def display_player(self, player_idx):
         self.reset_svgplot()
+        if player_idx is not None:
+            for (segment_air, segment_land, final_point, admissible, reached_target) in self.golf_game.played[player_idx]:
+                self.plot(segment_air, segment_land, admissible)
+            self.set_label_text("Displaying {}".format(self.golf_game.player_names[player_idx]), 1)
+        self.current_player_displayed = player_idx
+
+    def view_drop_down_changed(self, widget, value):
         player_idx = widget.get_key()
+        self.display_player(player_idx)
+    
+    def match_display_with_game(self):
+        player_idx = self.golf_game.get_current_player_idx()
+        if self.current_player_displayed != player_idx:
+            self.display_player(player_idx)
+            self.view_drop_down.select_by_key(player_idx)
 
     def play_step_bt_press(self, widget):
         self.golf_game.play(run_stepwise=True)
+        self.match_display_with_game()
 
     def play_turn_bt_press(self, widget):
+        self.match_display_with_game()
         self.golf_game.play(run_stepwise=False)
 
     def play_all_bt_press(self, widget):

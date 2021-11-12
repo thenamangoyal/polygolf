@@ -98,6 +98,9 @@ class GolfGame:
             return self.player_names[self.next_player]
         return None
 
+    def get_current_player_idx(self):
+        return self.next_player
+
     def __add_players(self, player_list):
         player_count = dict()
         for player_name in player_list:
