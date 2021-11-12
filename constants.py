@@ -8,4 +8,4 @@ max_skill = 100
 extra_roll = 0.1
 min_putter_dist = 20
 max_dist = 200
-possible_players = ["d"] + list(map(str, range(1,11)))
+possible_players = ["d"] + list(map(str, range(1, 11)))

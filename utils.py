@@ -2,6 +2,7 @@ import time
 import signal
 import logging
 
+
 class TimeoutException(Exception):   # Custom exception class
     pass
 
@@ -31,12 +32,14 @@ class PlayerLoggingFilter(logging.Filter):
         else:
             return False
 
+
 def isiterable(obj):
     try:
         iterator = iter(obj)
     except TypeError as te:
         return False
     return True
+
 
 def count_iterable(i):
     return sum(1 for e in i)

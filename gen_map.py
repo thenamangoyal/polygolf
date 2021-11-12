@@ -7,8 +7,9 @@ import os
 
 FILE = None
 map = []
-golf_start = sympy.geometry.Point2D(100,100)
-golf_target = sympy.geometry.Point2D(700,500)
+golf_start = sympy.geometry.Point2D(100, 100)
+golf_target = sympy.geometry.Point2D(700, 500)
+
 
 def draw_polygon(poly):
     begin_shape()
@@ -16,21 +17,23 @@ def draw_polygon(poly):
         vertex(float(v.x), float(v.y))
     end_shape()
 
+
 def draw_point(p):
     point(float(p.x), float(p.y))
+
 
 def draw_line(l):
     line((float(l.points[0].x), float(l.points[0].y)), (float(l.points[1].x), float(l.points[1].y)))
 
+
 def draw_circle(c):
-    circle(float(c.center.x),float(c.center.y), float(c.radius))
+    circle(float(c.center.x), float(c.center.y), float(c.radius))
 
 
 def setup():
     size(800, 600)
     print(width)
     print(height)
-    
 
 
 def draw():
@@ -44,19 +47,20 @@ def draw():
             draw_point(poly)
         elif len(map) == 2:
             draw_line(poly)
-        elif len(map) >2:
+        elif len(map) > 2:
 
             draw_polygon(poly)
     if golf_start:
         sc = sympy.geometry.Circle(golf_start, 10)
-        fill(255,0,0)
+        fill(255, 0, 0)
         draw_circle(sc)
         fill(255)
     if golf_target:
         ec = sympy.geometry.Circle(golf_target, 10)
-        fill(0,255,0)
+        fill(0, 255, 0)
         draw_circle(ec)
         fill(255)
+
 
 def save():
     global map, golf_start, golf_target, FILE
@@ -64,7 +68,7 @@ def save():
     for p in map:
         tup = (float(p.x), float(p.y))
         map_list.append(tup)
-    
+
     save_dict = dict()
     save_dict["map"] = map_list
     save_dict["start"] = (float(golf_start.x), float(golf_start.y))
@@ -75,12 +79,14 @@ def save():
     print("saved file {}".format(FILE))
     exit()
 
+
 def mouse_pressed():
     global map, golf_start, golf_target
     p = sympy.geometry.Point2D(mouse_x, mouse_y)
     print(mouse_x, mouse_y)
     map.append(p)
     print("New Map", map)
+
 
 def key_pressed():
     global map, golf_start, golf_target

@@ -1,6 +1,7 @@
 import numpy as np
 import sympy
 
+
 class Player:
     def __init__(self, skill, rng, logger) -> None:
         self.skill = skill
@@ -12,7 +13,7 @@ class Player:
         slope = (target.y - curr_loc.y)/(target.x - curr_loc.x)
         slope = float(slope)
         angle = np.arctan(np.abs(slope))
-        if slope > 0  and curr_loc.x <= target.x:
+        if slope > 0 and curr_loc.x <= target.x:
             angle = angle
         elif slope > 0 and curr_loc.x > target.x:
             angle = np.pi + angle
