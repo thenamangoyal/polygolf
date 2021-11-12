@@ -81,12 +81,11 @@ class GolfGame:
         self.processing_turn = False
         self.end_message_printed = False
 
-        # start(GolfApp, address=args.address, port=args.port, start_browser=not(args.no_browser), update_interval=0.5, userdata=(self, args.automatic))
         self.__add_players(player_list)
         self.next_player = self.__assign_next_player()
 
         if self.use_gui:
-            start(GolfApp, address=args.address, port=args.port, start_browser=not(args.no_browser), update_interval=0.5, userdata=(self, args.automatic))
+            start(GolfApp, address=args.address, port=args.port, start_browser=not(args.no_browser), update_interval=0.5, userdata=(self, args.automatic, self.logger))
         else:
             self.logger.debug("No GUI flag specified")
 

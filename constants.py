@@ -9,3 +9,6 @@ extra_roll = 0.1
 min_putter_dist = 20
 max_dist = 200
 possible_players = ["d"] + list(map(str, range(1, 11)))
+
+vis_width = 1000
+vis_height = 600

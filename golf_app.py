@@ -2,6 +2,7 @@ import logging
 import os
 import numpy as np
 import sympy
+from sympy.geometry.entity import translate
 import constants
 
 from remi import App, gui
@@ -12,26 +13,37 @@ class GolfApp(App):
         res_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'res')
         super(GolfApp, self).__init__(*args, static_file_path={'res': res_path})
 
+    def convert_coord(self, coord):
+        coord = coord.translate(-self.translate.x, -self.translate.y)
+        return coord.scale(x=self.scale, y=self.scale)
+
     def draw_polygon(self, poly):
-        p = gui.SvgPolygon(len(poly.vertices))
-        for v in poly.vertices:
-            p.add_coord(float(v.x), float(v.y))
-        return p
+        svg_poly = gui.SvgPolygon(len(poly.vertices))
+        for p in poly.vertices:
+            p = self.convert_coord(p)
+            svg_poly.add_coord(float(p.x), float(p.y))
+        return svg_poly
 
     def draw_point(self, point):
+        point = self.convert_coord(point)
         return gui.SvgCircle(float(point.x), float(point.y), 1.0)
 
     def draw_line(self, line):
-        return gui.SvgLine(float(line.points[0].x), float(line.points[0].y), float(line.points[1].x), float(line.points[1].y))
+        point1 = self.convert_coord(line.points[0])
+        point2 = self.convert_coord(line.points[1])
+        return gui.SvgLine(float(point1.x), float(point1.y), float(point2.x), float(point2.y))
 
     def draw_circle(self, circle):
-        return gui.SvgCircle(float(circle.center.x), float(circle.center.y), float(circle.radius))
+        center = self.convert_coord(circle.center)
+        radius = self.scale*circle.radius
+        return gui.SvgCircle(float(center.x), float(center.y), float(radius))
 
     def draw_text(self, point, text):
+        point = self.convert_coord(point)
         return gui.SvgText(float(point.x), float(point.y), text)
 
     def main(self, *userdata):
-        self.golf_game, start_automatic = userdata
+        self.golf_game, start_automatic, self.logger = userdata
         self.golf_game.set_app(self)
 
         mainContainer = gui.Container(style={'width': '100%', 'height': '100%', 'overflow': 'auto', 'text-align': 'center'})
@@ -78,10 +90,9 @@ class GolfApp(App):
             self.score_table.item_at(1, player_idx).set_style("padding:0 10px")
         mainContainer.append(self.score_table)
 
-        self.svgplot = gui.Svg(width="80%", height="80vh", style={'background-color': '#BBDDFF', 'margin': '0 auto'})
-        # screen_width = 1000
-        # screen_height = 600
-        # svgplot.set_viewbox(0, 0, screen_width, screen_height)
+        self.load_map()
+        self.svgplot = gui.Svg(width="80vw", height="80vh", style={'background-color': '#BBDDFF', 'margin': '0 auto'})
+        # svgplot.set_viewbox(0, 0, constants.vis_width, constants.vis_height)
 
         self.current_player_displayed = self.golf_game.get_current_player_idx()
         self.display_player(self.current_player_displayed)
@@ -95,35 +106,48 @@ class GolfApp(App):
                 self.golf_game.play(run_stepwise=True)
         else:
             self.automatic_play.set_value(False)
+    
+    def load_map(self):
+        self.golf_map = self.golf_game.golf.golf_map
+        self.golf_start = self.golf_game.golf.start
+        self.golf_target = self.golf_game.golf.target
+
+        bounds = self.golf_map.bounds
+        xmin, ymin, xmax, ymax = list(map(float, bounds))
+        self.translate = sympy.geometry.Point2D(xmin, ymin)
+        self.logger.info("Translating visualization by x={}, y={}".format(float(-self.translate.x), float(-self.translate.y)))
+        # map_points = list(map(lambda p: p.translate(-self.translate.x, -self.translate.y), self.golf_map.vertices))
+        # self.golf_map = sympy.Polygon(*map_points)
+        # self.golf_start = self.golf_start.translate(-self.translate.x, -self.translate.y)
+        # self.golf_target = self.golf_target.translate(-self.translate.x, -self.translate.y)
+        
+        self.scale = min(constants.vis_width/(xmax-xmin), constants.vis_height/(ymax-ymin))
+        
+        self.logger.info("Scaling visualization by factor {}".format(float(self.scale)))
 
     def reset_svgplot(self):
         self.svgplot.empty()
-
-        bounds = self.golf_game.golf.golf_map.bounds
-        xmin, ymin, xmax, ymax = list(map(float, bounds))
-        p = self.draw_polygon(self.golf_game.golf.golf_map)
+        
+        p = self.draw_polygon(self.golf_map)
         # p.set_stroke(1, "black")
         p.set_fill("#BBFF66")
         self.svgplot.append(p)
 
-        golf_start = self.golf_game.golf.start
-        golf_target = self.golf_game.golf.target
-
         unit_t = sympy.geometry.Triangle(asa=(60, 10, 60))
-        golf_start_triangle = sympy.geometry.Triangle(*list(map(lambda p: p.translate(golf_start.x-unit_t.circumcenter.x, golf_start.y-unit_t.circumcenter.y), unit_t.vertices)))
+        golf_start_triangle = sympy.geometry.Triangle(*list(map(lambda p: p.translate(self.golf_start.x-unit_t.circumcenter.x, self.golf_start.y-unit_t.circumcenter.y), unit_t.vertices)))
         t = self.draw_polygon(golf_start_triangle)
         t.set_fill("red")
         self.svgplot.append(t)
 
-        golf_target_circle = sympy.geometry.Circle(golf_target, constants.target_radius)
+        golf_target_circle = sympy.geometry.Circle(self.golf_target, constants.target_radius)
         c = self.draw_circle(golf_target_circle)
         c.set_fill("rgba(0,0,0,0.3)")
         self.svgplot.append(c)
 
-        ps = self.draw_point(golf_start)
+        ps = self.draw_point(self.golf_start)
         self.svgplot.append(ps)
 
-        pe = self.draw_point(golf_target)
+        pe = self.draw_point(self.golf_target)
         self.svgplot.append(pe)
 
     def display_player(self, player_idx):
