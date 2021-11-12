@@ -182,6 +182,31 @@ class GolfGame:
             self.logger.info("Players sorted by total time")
             for (player_name, player_total_time) in self.total_time_sorted:
                 self.logger.info("{} took {:.3f}s".format(player_name, player_total_time))
+            
+            for player_idx, player_timeout_count in enumerate(self.timeout_count):
+                if player_timeout_count > 0:
+                    self.logger.info("{} timed out {} times".format(self.player_names[player_idx], player_timeout_count))
+
+            for player_idx, player_error_count in enumerate(self.error_count):
+                if player_error_count > 0:
+                    self.logger.info("{} had exceptions {} times".format(self.player_names[player_idx], player_error_count))
+
+            for player_idx, player_played in enumerate(self.played):
+                penalties = sum([1 for x in player_played if not x[3]])
+                if penalties > 0:
+                    self.logger.info("{} had {} penalties".format(self.player_names[player_idx], penalties))
+
+            for player_idx, score in enumerate(self.scores):
+                self.logger.info("{} score: {}".format(self.player_names[player_idx], score))
+            
+            self.final_scores = np.array(self.scores)
+
+            winner_list_idx = np.argwhere(self.final_scores == np.amin(self.final_scores))
+            self.winner_list = [self.player_names[i[0]] for i in winner_list_idx]
+
+            self.logger.info("Winner{}: {}".format("s" if len(self.winner_list) > 1 else "", ", ".join(self.winner_list)))
+            if self.use_gui:
+                self.golf_app.set_label_text("Winner{}: {}".format("s" if len(self.winner_list) > 1 else "", ", ".join(self.winner_list)), label_num=1)
 
     def __assign_next_player(self):
         # randomly select among valid players
