@@ -5,10 +5,12 @@ import numpy as np
 import argparse
 import os
 
+args = None
 FILE = None
 map = []
-golf_start = sympy.geometry.Point2D(100, 100)
-golf_target = sympy.geometry.Point2D(700, 500)
+golf_start = None
+golf_target = None
+f = None  # STEP 1 Declare PFont variable
 
 
 def draw_polygon(poly):
@@ -31,16 +33,22 @@ def draw_circle(c):
 
 
 def setup():
-    size(800, 600)
-    print(width)
-    print(height)
+    global f, args
+    size(args.width, args.height)
+    f = create_font("Arial.ttf", 16)  # STEP 2 Create Font
 
 
 def draw():
-    global map, golf_start, golf_target
+    global map, golf_start, golf_target, f, args
     background(102)
+    text_font(f, 16)
+    text_align("CENTER")
+    fill(0)
+    text("Press e to save and exit, s for start (red) and t for target (green)", (width/2, args.height*0.9))
+
     stroke(0)
     fill(255)
+
     if map:
         poly = sympy.geometry.Polygon(*map)
         if len(map) == 1:
@@ -91,7 +99,7 @@ def mouse_pressed():
 def key_pressed():
     global map, golf_start, golf_target
     p = sympy.geometry.Point2D(mouse_x, mouse_y)
-    print(mouse_x, mouse_y)
+    # print(mouse_x, mouse_y)
     if key == "e":
         save()
     elif key == "s":
@@ -104,10 +112,18 @@ def key_pressed():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("file")
+    parser.add_argument("--file", "-f", default="map.json", help="Path to export generated map")
+    parser.add_argument("--width", help="Width", type=int, default=800)
+    parser.add_argument("--height", help="Height", type=int, default=600)
+
     args = parser.parse_args()
     FILE = args.file
+
+    golf_start = sympy.geometry.Point2D(args.width*0.2, args.height*0.2)
+    golf_target = sympy.geometry.Point2D(args.width*0.8, args.height*0.8)
+
     dir = os.path.dirname(FILE)
     if dir:
         os.makedirs(dir, exist_ok=True)
+
     run(frame_rate=60)
