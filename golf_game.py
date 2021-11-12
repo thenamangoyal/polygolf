@@ -232,7 +232,7 @@ class GolfGame:
                 self.golf_app.display_player(self.next_player)
                 self.golf_app.update_score_table()
             self.__turn_end()
-        
+
         if self.is_game_ended() and not self.end_message_printed:
             self.__game_end()
 

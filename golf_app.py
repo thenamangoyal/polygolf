@@ -107,7 +107,7 @@ class GolfApp(App):
                 self.golf_game.play(run_stepwise=True)
         else:
             self.automatic_play.set_value(False)
-    
+
     def load_map(self):
         self.golf_map = self.golf_game.golf.golf_map
         self.golf_start = self.golf_game.golf.start
@@ -117,13 +117,13 @@ class GolfApp(App):
         xmin, ymin, xmax, ymax = list(map(float, bounds))
         self.translate = sympy.geometry.Point2D(xmin, ymin)
         self.scale = min(constants.vis_width/(xmax-xmin), constants.vis_height/(ymax-ymin))
-        
+
         self.logger.info("Translating visualization by x={}, y={}".format(float(-self.translate.x), float(-self.translate.y)))
         self.logger.info("Scaling visualization by factor {}".format(float(self.scale)))
 
     def reset_svgplot(self):
         self.svgplot.empty()
-        
+
         p = self.draw_polygon(self.golf_map)
         # p.set_stroke(1, "black")
         p.set_fill("#BBFF66")
@@ -151,7 +151,7 @@ class GolfApp(App):
         if player_idx is not None:
             for idx, (segment_air, segment_land, final_point, admissible, reached_target) in enumerate(self.golf_game.played[player_idx]):
                 self.plot(segment_air, segment_land, admissible, idx+1)
-            
+
             self.set_label_text("Displaying {}".format(self.golf_game.player_names[player_idx]), 1)
             self.view_drop_down.select_by_key(player_idx)
         else:
@@ -165,7 +165,7 @@ class GolfApp(App):
         if player_idx >= len(self.golf_game.player_names):
             player_idx = None
         self.display_player(player_idx)
-    
+
     def match_display_with_game(self):
         player_idx = self.golf_game.get_current_player_idx()
         if player_idx is not None and self.current_player_displayed != player_idx:
@@ -188,7 +188,7 @@ class GolfApp(App):
             base_stroke_color = "255,0,0"
         stroke_color_air = "rgba({}, 0.2)".format(base_stroke_color)
         stroke_color_land = "rgba({}, 1)".format(base_stroke_color)
-        
+
         if isinstance(segment_air, sympy.geometry.Segment2D):
             sa = self.draw_line(segment_air)
             sa.set_stroke(3, stroke_color_air)
