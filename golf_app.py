@@ -15,7 +15,8 @@ class GolfApp(App):
 
     def convert_coord(self, coord):
         coord = coord.translate(-self.translate.x, -self.translate.y)
-        return coord.scale(x=self.scale, y=self.scale)
+        coord = coord.scale(x=self.scale, y=self.scale)
+        return coord
 
     def draw_polygon(self, poly):
         svg_poly = gui.SvgPolygon(len(poly.vertices))
