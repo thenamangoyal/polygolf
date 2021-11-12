@@ -13,6 +13,8 @@ from utils import *
 from players.default_player import Player as DefaultPLayer
 
 
+return_vals = ["player_names", "skills", "scores", "penalties", "winner_list", "total_time_sorted",  "timeout_count", "error_count"]
+
 class GolfGame:
     def __init__(self, player_list, args):
         self.use_gui = not(args.no_gui)
@@ -72,11 +74,15 @@ class GolfGame:
         self.played = []
         self.curr_locs = []
         self.scores = []
+        self.penalties = []
         self.next_player = None
 
         self.time_taken = []
         self.timeout_count = []
         self.error_count = []
+
+        self.winner_list = None
+        self.total_time_sorted = None
 
         self.processing_turn = False
         self.end_message_printed = False
@@ -136,6 +142,7 @@ class GolfGame:
             self.played.append([])
             self.curr_locs.append(self.golf.start.copy())
             self.scores.append(0)
+            self.penalties.append(0)
             self.time_taken.append([])
             self.timeout_count.append(0)
             self.error_count.append(0)
@@ -191,17 +198,18 @@ class GolfGame:
                 if player_error_count > 0:
                     self.logger.info("{} had exceptions {} times".format(self.player_names[player_idx], player_error_count))
 
-            for player_idx, player_played in enumerate(self.played):
-                penalties = sum([1 for x in player_played if not x["admissible"]])
-                if penalties > 0:
-                    self.logger.info("{} had {} penalties".format(self.player_names[player_idx], penalties))
+            for player_idx, penalty in enumerate(self.penalties):
+                if penalty != 0:
+                    self.logger.info("{} had {} {}".format(self.player_names[player_idx], penalty, "penalties" if penalty != 1 else "penalty"))
+                else:
+                    self.logger.info("{} had no penalty".format(self.player_names[player_idx]))
+
 
             for player_idx, score in enumerate(self.scores):
                 self.logger.info("{} score: {}".format(self.player_names[player_idx], score))
             
-            self.final_scores = np.array(self.scores)
-
-            winner_list_idx = np.argwhere(self.final_scores == np.amin(self.final_scores))
+            scores_array = np.array(self.scores, dtype=np.int) 
+            winner_list_idx = np.argwhere(scores_array == np.amin(scores_array))
             self.winner_list = [self.player_names[i[0]] for i in winner_list_idx]
 
             self.logger.info("Winner{}: {}".format("s" if len(self.winner_list) > 1 else "", ", ".join(self.winner_list)))
@@ -225,6 +233,15 @@ class GolfGame:
             if self.use_gui:
                 self.golf_app.set_label_text("Next turn {}".format(self.player_names[self.next_player]))
 
+    def get_state(self):
+        return_dict = dict()
+        for val in return_vals:
+            value = getattr(self, val)
+            if isinstance(value, np.ndarray):
+                value = value.tolist()
+            return_dict[val] = value
+        return return_dict
+    
     def play_all(self):
         if not self.is_game_ended():
             self.logger.debug("Playing all turns")
@@ -327,6 +344,8 @@ class GolfGame:
                 
                 if admissible:
                     self.curr_locs[player_idx] = final_point
+                else:
+                    self.penalties[player_idx] += 1
 
                 self.played[player_idx].append(step_play_dict)
 
@@ -433,4 +452,5 @@ if __name__ == '__main__':
     golf_game = GolfGame(player_list, args)
     if not golf_game.use_gui:
         golf_game.play_all()
-        # result = golf_game.get_state()
+        result = golf_game.get_state()
+        print(result)
