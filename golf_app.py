@@ -115,14 +115,9 @@ class GolfApp(App):
         bounds = self.golf_map.bounds
         xmin, ymin, xmax, ymax = list(map(float, bounds))
         self.translate = sympy.geometry.Point2D(xmin, ymin)
-        self.logger.info("Translating visualization by x={}, y={}".format(float(-self.translate.x), float(-self.translate.y)))
-        # map_points = list(map(lambda p: p.translate(-self.translate.x, -self.translate.y), self.golf_map.vertices))
-        # self.golf_map = sympy.Polygon(*map_points)
-        # self.golf_start = self.golf_start.translate(-self.translate.x, -self.translate.y)
-        # self.golf_target = self.golf_target.translate(-self.translate.x, -self.translate.y)
-        
         self.scale = min(constants.vis_width/(xmax-xmin), constants.vis_height/(ymax-ymin))
         
+        self.logger.info("Translating visualization by x={}, y={}".format(float(-self.translate.x), float(-self.translate.y)))
         self.logger.info("Scaling visualization by factor {}".format(float(self.scale)))
 
     def reset_svgplot(self):
