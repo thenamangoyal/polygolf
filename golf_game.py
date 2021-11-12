@@ -159,6 +159,8 @@ class GolfGame:
         if not self.end_message_printed and self.is_game_ended():
             self.end_message_printed = True
             self.logger.info("Game ended as each player finished playing")
+            if self.use_gui:
+                self.golf_app.set_label_text("Game ended as each player finished playing")
 
     def __assign_next_player(self):
         # randomly select among valid players
@@ -172,8 +174,11 @@ class GolfGame:
         self.processing_turn = False
 
         self.next_player = self.__assign_next_player()
-        if self.next_player:
+        if self.next_player is not None:
             self.logger.debug("Next turn {}".format(self.player_names[self.next_player]))
+            if self.use_gui:
+                self.golf_app.set_label_text("Next turn {}".format(self.player_names[self.next_player]))
+
 
     def play_all(self):
         if not self.is_game_ended():
@@ -183,6 +188,9 @@ class GolfGame:
             if self.use_gui:
                 self.golf_app.update_score_table()
             self.__game_end()
+        elif not self.end_message_printed:
+            self.__game_end()
+
 
     def play(self, run_stepwise=False, do_update=True):
         if not self.processing_turn:
@@ -193,6 +201,8 @@ class GolfGame:
                     self.logger.debug("Assigned new player {}".format(self.player_names[self.next_player]))
 
                 self.logger.debug("Current turn {}".format(self.player_names[self.next_player]))
+                if self.use_gui:
+                    self.golf_app.set_label_text("Current turn {}".format(self.player_names[self.next_player]))
 
                 self.processing_turn = True
                 self.player_states[self.next_player] = "P"
@@ -254,20 +264,26 @@ class GolfGame:
             is_valid_action = self.__check_action(returned_action)
             if is_valid_action:
                 distance, angle = returned_action
+                self.logger.debug("Received distance: {}, angle: {} from {} in {:.3f}s".format(distance, angle, self.player_names[player_idx], step_time))
+                if self.use_gui:
+                    self.golf_app.set_label_text("{}, ({:.2f},{:.2f})".format(self.golf_app.get_label_text(), float(distance), float(angle)))
                 segment_air, segment_land, final_point, admissible, reached_target = self.__move(distance, angle, player_idx)
                 if admissible:
                     self.curr_locs[player_idx] = final_point
                 self.played[player_idx].append((segment_air, segment_land, final_point, admissible, reached_target))
                 if reached_target:
                     self.logger.info("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
+                    self.golf_app.set_label_text("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
                     self.player_states[player_idx] = "S"
                     pass_next = True
                 elif self.scores[player_idx] >= constants.max_tries:
                     self.logger.info("{} failed since it used {} max tries".format(self.player_names[player_idx], constants.max_tries))
+                    self.golf_app.set_label_text("{} failed since it used {} max tries".format(self.player_names[player_idx], constants.max_tries))
                     self.player_states[player_idx] = "F"
                     pass_next = True
             else:
                 self.logger.info("{} failed since provided invalid action {}".format(self.player_names[player_idx], returned_action))
+                self.golf_app.set_label_text("{} failed since provided invalid action {}".format(self.player_names[player_idx], returned_action))
                 self.player_states[player_idx] = "F"
                 pass_next = True
 
@@ -281,7 +297,6 @@ class GolfGame:
         curr_loc = self.curr_locs[player_idx]
         actual_distance = self.rng.normal(distance, distance/self.skills[player_idx])
         actual_angle = self.rng.normal(angle, 1/(2*self.skills[player_idx]))
-        self.logger.debug("{} provided Distance: {}, Angle: {}".format(self.player_names[player_idx], distance, angle))
         self.logger.debug("Observed Distance: {}, Angle: {}".format(actual_distance, actual_angle))
 
         if distance <= constants.max_dist+self.skills[player_idx] and distance >= constants.min_putter_dist:

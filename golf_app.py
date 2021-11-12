@@ -48,6 +48,13 @@ class GolfApp(App):
         play_turn_bt.onclick.do(self.play_turn_bt_press)
         play_all_bt.onclick.do(self.play_all_bt_press)
         mainContainer.append(bt_hbox)
+        self.labels = []
+        self.labels.append(gui.Label("Polygolf: Ready to start", style={'margin': '5px auto'}))
+        if self.golf_game.next_player is not None:
+            self.golf_game.logger.debug("First turn {}".format(self.golf_game.player_names[self.golf_game.next_player]))
+            self.set_label_text("{}, First turn {}".format(self.get_label_text(), self.golf_game.player_names[self.golf_game.next_player]))
+        for label in self.labels:
+            mainContainer.append(label)
 
         self.score_table = gui.TableWidget(2, len(self.golf_game.players), style={'margin': '5px auto'})
         self.update_score_table()
@@ -57,7 +64,7 @@ class GolfApp(App):
             self.score_table.item_at(1, player_idx).set_style("padding:0 10px")
         mainContainer.append(self.score_table)
 
-        self.svgplot = gui.Svg(width="80%", height="80vh", style={'background-color': '#BBDDFF', 'margin-top': '2%'})
+        self.svgplot = gui.Svg(width="80%", height="80vh", style={'background-color': '#BBDDFF', 'margin': '0 auto'})
         # screen_width = 1000
         # screen_height = 600
         # svgplot.set_viewbox(0, 0, screen_width, screen_height)
@@ -131,3 +138,9 @@ class GolfApp(App):
         for player_idx, score in enumerate(self.golf_game.scores):
             self.score_table.item_at(0, player_idx).set_text("{}, {}".format(self.golf_game.player_names[player_idx], self.golf_game.skills[player_idx]))
             self.score_table.item_at(1, player_idx).set_text("{}, {}".format(score, self.golf_game.player_states[player_idx]))
+    
+    def set_label_text(self, text, label_num=0):
+        self.labels[label_num].set_text(text)
+
+    def get_label_text(self, label_num=0):
+        return self.labels[label_num].get_text()
