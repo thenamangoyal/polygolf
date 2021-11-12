@@ -169,6 +169,20 @@ class GolfGame:
             if self.use_gui:
                 self.golf_app.set_label_text("Game ended as each player finished playing")
 
+            total_time = np.zeros(len(self.players))
+            for player_idx, player_time_taken in enumerate(self.time_taken):
+                player_time_taken_flatten = np.array(player_time_taken)
+                if player_time_taken_flatten.size == 0:
+                    player_time_taken_flatten = np.zeros(1)
+                self.logger.info("{} took {} steps, total time {:.3f}s, avg step time {:.3f}s, max step time {:.3f}s".format(self.player_names[player_idx], player_time_taken_flatten.size, np.sum(player_time_taken_flatten), np.mean(player_time_taken_flatten), np.amax(player_time_taken_flatten)))
+                total_time[player_idx] = np.sum(player_time_taken_flatten)
+            self.logger.info("Total time taken by all players {:.3f}s".format(np.sum(total_time)))
+            total_time_sort_idx = np.argsort(total_time)[::-1]
+            self.total_time_sorted = [(self.player_names[player_idx], total_time[player_idx]) for player_idx in total_time_sort_idx]
+            self.logger.info("Players sorted by total time")
+            for (player_name, player_total_time) in self.total_time_sorted:
+                self.logger.info("{} took {:.3f}s".format(player_name, player_total_time))
+
     def __assign_next_player(self):
         # randomly select among valid players
         valid_players = [i for i, s in enumerate(self.player_states) if s not in constants.end_player_states]
@@ -212,7 +226,6 @@ class GolfGame:
 
                 self.processing_turn = True
                 self.player_states[self.next_player] = "P"
-                self.time_taken[self.next_player].append([])
 
             else:
                 if not self.end_message_printed:
@@ -286,17 +299,20 @@ class GolfGame:
                     self.golf_app.plot(segment_air, segment_land, admissible, len(self.played[player_idx]))
                 if reached_target:
                     self.logger.info("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
-                    self.golf_app.set_label_text("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
+                    if self.use_gui:
+                        self.golf_app.set_label_text("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
                     self.player_states[player_idx] = "S"
                     pass_next = True
                 elif self.scores[player_idx] >= constants.max_tries:
                     self.logger.info("{} failed since it used {} max tries".format(self.player_names[player_idx], constants.max_tries))
-                    self.golf_app.set_label_text("{} failed since it used {} max tries".format(self.player_names[player_idx], constants.max_tries))
+                    if self.use_gui:
+                        self.golf_app.set_label_text("{} failed since it used {} max tries".format(self.player_names[player_idx], constants.max_tries))
                     self.player_states[player_idx] = "F"
                     pass_next = True
             else:
                 self.logger.info("{} failed since provided invalid action {}".format(self.player_names[player_idx], returned_action))
-                self.golf_app.set_label_text("{} failed since provided invalid action {}".format(self.player_names[player_idx], returned_action))
+                if self.use_gui:
+                    self.golf_app.set_label_text("{} failed since provided invalid action {}".format(self.player_names[player_idx], returned_action))
                 self.player_states[player_idx] = "F"
                 pass_next = True
 
@@ -379,3 +395,6 @@ if __name__ == '__main__':
             args.log_path = "results.log"
 
     golf_game = GolfGame(player_list, args)
+    if not golf_game.use_gui:
+        golf_game.play_all()
+        # result = golf_game.get_state()
