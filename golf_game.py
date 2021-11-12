@@ -346,9 +346,6 @@ class GolfGame:
 class Golf:
     def __init__(self, map_filepath, logger) -> None:
         self.logger = logger
-        if not os.path.exists(map_filepath):
-            self.logger.error("Using default map as couldn't find {}".format(map_filepath))
-            map_filepath = constants.default_map
 
         self.logger.info("Map file loaded: {}".format(map_filepath))
         with open(map_filepath, "r") as f:
@@ -356,6 +353,8 @@ class Golf:
         self.start = sympy.geometry.Point2D(*json_obj["start"])
         self.target = sympy.geometry.Point2D(*json_obj["target"])
         self.golf_map = sympy.Polygon(*json_obj["map"])
+        assert self.golf_map.encloses(self.start), "Start point doesn't lie inside map polygon"
+        assert self.golf_map.encloses(self.target), "Target point doesn't lie inside map polygon"
 
 
 if __name__ == '__main__':
