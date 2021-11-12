@@ -127,7 +127,7 @@ class GolfGame:
             self.skills.append(skill)
             self.player_states.append("NP")
             self.played.append([])
-            self.curr_locs.append(self.golf.start)
+            self.curr_locs.append(self.golf.start.copy())
             self.scores.append(0)
             self.time_taken.append([])
             self.timeout_count.append(0)
@@ -247,7 +247,7 @@ class GolfGame:
                     signal.alarm(constants.timeout)
                 try:
                     start_time = time.time()
-                    returned_action = self.players[player_idx].play(golf_map=self.golf.golf_map, target=self.golf.target, curr_loc=self.curr_locs[player_idx])
+                    returned_action = self.players[player_idx].play(golf_map=self.golf.golf_map.copy(), target=self.golf.target.copy(), curr_loc=self.curr_locs[player_idx].copy())
                     if self.use_timeout:
                         signal.alarm(0)      # Clear alarm
                 except TimeoutException:
