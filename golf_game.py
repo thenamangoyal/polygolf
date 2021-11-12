@@ -215,7 +215,8 @@ class GolfGame:
                 self.time_taken[self.next_player].append([])
 
             else:
-                self.__game_end()
+                if not self.end_message_printed:
+                    self.__game_end()
                 return
 
         if run_stepwise:
@@ -228,8 +229,12 @@ class GolfGame:
             while not pass_next:
                 pass_next = self.__step(self.next_player, do_update=False)
             if do_update and self.use_gui:
+                self.golf_app.display_player(self.next_player)
                 self.golf_app.update_score_table()
             self.__turn_end()
+        
+        if self.is_game_ended() and not self.end_message_printed:
+            self.__game_end()
 
     def __check_action(self, returned_action):
         if not returned_action:
