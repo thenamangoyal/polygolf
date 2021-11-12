@@ -257,16 +257,12 @@ class GolfGame:
     def play(self, run_stepwise=False, do_update=True):
         if self.use_gui:
             self.golf_app.set_label_text("Processing...", 1)
-        if run_stepwise and self.use_gui:
-            self.golf_app.match_display_with_game()
         if not self.processing_turn:
             if not self.is_game_ended():
                 if self.player_states[self.next_player] in constants.end_player_states:
                     self.logger.debug("Can't pass to the {}, as the player's game finished".format(self.player_names[self.next_player]))
                     self.next_player = self.__assign_next_player()
                     self.logger.debug("Assigned new player {}".format(self.player_names[self.next_player]))
-                    if run_stepwise and self.use_gui:
-                        self.golf_app.match_display_with_game()
 
                 self.logger.debug("Current turn {}".format(self.player_names[self.next_player]))
                 if self.use_gui:
@@ -281,6 +277,7 @@ class GolfGame:
                 return
 
         if run_stepwise:
+            self.golf_app.match_display_with_game()
             pass_next = self.__step(self.next_player, do_update)
             if pass_next:
                 self.__turn_end()
