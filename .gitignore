@@ -127,3 +127,20 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# IDE
+.vscode/
+.idea/
+
+# MacOS
+.DS_Store
+
+# Metadata
+.metadata/
+
+# Debug log
+results.log
+log/
+
+# Tournament
+results/
