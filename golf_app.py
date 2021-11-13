@@ -45,13 +45,16 @@ class GolfApp(App):
         point = self.convert_coord(point)
         return gui.SvgText(float(point.x), float(point.y), text)
 
+    def compute_vis_padding(self):
+        self.vis_width_padded = constants.vis_width*(1.+2*constants.vis_padding)
+        self.vis_height_padded = constants.vis_height*(1.+2*constants.vis_padding)
+
     def main(self, *userdata):
         self.golf_game, start_automatic, self.logger = userdata
         self.golf_game.set_app(self)
         self.vis_width = constants.vis_width
         self.vis_height = constants.vis_height
-        self.vis_width_padded = constants.vis_width*(1.+2*constants.vis_padding)
-        self.vis_height_padded = constants.vis_height*(1.+2*constants.vis_padding)
+        self.compute_vis_padding()
 
         mainContainer = gui.Container(style={'width': '100%', 'height': '100%', 'overflow': 'auto', 'text-align': 'center'})
         mainContainer.style['justify-content'] = 'center'
