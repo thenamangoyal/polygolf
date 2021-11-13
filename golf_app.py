@@ -98,6 +98,8 @@ class GolfApp(App):
 
         self.load_map()
         self.svgplot = gui.Svg(width="{}vw".format(100*constants.vis_width_ratio*self.padding_factor), height="{}vh".format(100*constants.vis_height_ratio*self.padding_factor), style={'background-color': '#BBDDFF', 'margin': '0 auto', 'min-width': str(self.vis_width*self.padding_factor), 'min-height': str(self.vis_height*self.padding_factor)})
+        self.svgplot.set_viewbox(0, 0, self.vis_width*self.padding_factor, self.vis_height*self.padding_factor)
+        self.svgplot.attr_preserveAspectRatio = "xMidYMid"
 
         self.current_player_displayed = self.golf_game.get_current_player_idx()
         self.display_player(self.current_player_displayed)
