@@ -115,7 +115,7 @@ def key_pressed():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--file", "-f", default="map.json", help="Path to export generated map")
+    parser.add_argument("--file", "-f", default="maps/map.json", help="Path to export generated map")
     parser.add_argument("--width", help="Width", type=int, default=constants.vis_width)
     parser.add_argument("--height", help="Height", type=int, default=constants.vis_height)
 
