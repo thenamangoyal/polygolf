@@ -92,7 +92,7 @@ class GolfApp(App):
         mainContainer.append(self.score_table)
 
         self.load_map()
-        self.svgplot = gui.Svg(width="80vw", height="80vh", style={'background-color': '#BBDDFF', 'margin': '0 auto', 'min-width': str(self.width), 'min-height': str(self.height)})
+        self.svgplot = gui.Svg(width="70vw", height="70vh", style={'background-color': '#BBDDFF', 'margin': '0 auto', 'min-width': str(self.width), 'min-height': str(self.height)})
         # self.svgplot.set_viewbox(0, 0, self.width, self.height)
 
         self.current_player_displayed = self.golf_game.get_current_player_idx()
