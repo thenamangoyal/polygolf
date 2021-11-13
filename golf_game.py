@@ -1,10 +1,10 @@
+import logging
 import os
 import time
 import signal
 import numpy as np
 import sympy
 import argparse
-import logging
 from remi import start
 from golf_app import GolfApp
 from golf_map import GolfMap

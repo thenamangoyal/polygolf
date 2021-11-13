@@ -2,7 +2,6 @@ import logging
 import os
 import numpy as np
 import sympy
-import logging
 import json
 import constants
 
