@@ -13,9 +13,10 @@ class GolfApp(App):
         super(GolfApp, self).__init__(*args, static_file_path={'res': res_path})
 
     def convert_coord(self, coord):
+        scale = min(self.scale.x*self.vis_width, self.scale.y*self.vis_height)
         coord = coord.translate(self.translate.x, self.translate.y)
-        coord = coord.scale(x=self.scale, y=self.scale)
-        coord = coord.translate(self.translate_center.x, self.translate_center.y)
+        coord = coord.scale(x=scale, y=scale)
+        coord = coord.translate(self.vis_width_padded/2, self.vis_height_padded/2)
         return coord
 
     def draw_polygon(self, poly):
@@ -35,8 +36,9 @@ class GolfApp(App):
         return gui.SvgLine(float(point1.x), float(point1.y), float(point2.x), float(point2.y))
 
     def draw_circle(self, circle):
+        scale = min(self.scale.x*self.vis_width, self.scale.y*self.vis_height)
         center = self.convert_coord(circle.center)
-        radius = self.scale*circle.radius
+        radius = scale*circle.radius
         return gui.SvgCircle(float(center.x), float(center.y), float(radius))
 
     def draw_text(self, point, text):
@@ -46,6 +48,10 @@ class GolfApp(App):
     def main(self, *userdata):
         self.golf_game, start_automatic, self.logger = userdata
         self.golf_game.set_app(self)
+        self.vis_width = constants.vis_width
+        self.vis_height = constants.vis_height
+        self.vis_width_padded = constants.vis_width*(1.+2*constants.vis_padding)
+        self.vis_height_padded = constants.vis_height*(1.+2*constants.vis_padding)
 
         mainContainer = gui.Container(style={'width': '100%', 'height': '100%', 'overflow': 'auto', 'text-align': 'center'})
         mainContainer.style['justify-content'] = 'center'
@@ -92,8 +98,7 @@ class GolfApp(App):
         mainContainer.append(self.score_table)
 
         self.load_map()
-        self.svgplot = gui.Svg(width="70vw", height="70vh", style={'background-color': '#BBDDFF', 'margin': '0 auto', 'min-width': str(self.width), 'min-height': str(self.height)})
-        # self.svgplot.set_viewbox(0, 0, self.width, self.height)
+        self.svgplot = gui.Svg(width="70vw", height="70vh", style={'background-color': '#BBDDFF', 'margin': '0 auto', 'min-width': str(self.vis_width_padded), 'min-height': str(self.vis_height_padded)})
 
         self.current_player_displayed = self.golf_game.get_current_player_idx()
         self.display_player(self.current_player_displayed)
@@ -113,18 +118,15 @@ class GolfApp(App):
         self.golf_start = self.golf_game.golf.start
         self.golf_target = self.golf_game.golf.target
 
-        self.width = constants.vis_width*(1.+2*constants.vis_padding)
-        self.height = constants.vis_height*(1.+2*constants.vis_padding)
         bounds = self.golf_map.bounds
         xmin, ymin, xmax, ymax = list(map(float, bounds))
         translate_x = -(xmin+xmax)/2
         translate_y = -(ymin+ymax)/2
         self.translate = sympy.geometry.Point2D(translate_x, translate_y)
-        self.scale = min(constants.vis_width/(xmax-xmin), constants.vis_height/(ymax-ymin))
-        self.translate_center = sympy.geometry.Point2D(self.width/2, self.height/2)
+        self.scale = sympy.geometry.Point2D(1/(xmax-xmin), 1/(ymax-ymin))
 
         self.logger.info("Translating visualization by x={}, y={}".format(float(self.translate.x), float(self.translate.y)))
-        self.logger.info("Scaling visualization by factor {}".format(float(self.scale)))
+        self.logger.info("Base Scaling visualization by factors {}".format(float(self.scale.x), float(self.scale.y)))
 
     def reset_svgplot(self, full_refresh=False):
         if full_refresh or len(self.svgplot.children) == 0:
