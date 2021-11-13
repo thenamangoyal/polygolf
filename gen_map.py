@@ -46,6 +46,7 @@ def draw():
     text_align("CENTER")
     fill(0)
     text("Press e to save and exit, s for start (red) and t for target (green)", (width/2, args.height*0.9))
+    text("Click in order to draw map polygon", (width/2, args.height*0.95))
 
     stroke(0)
     fill(255)
@@ -86,7 +87,6 @@ def save():
     with open(FILE, "w") as f:
         json.dump(save_dict, f)
     print("saved file {}".format(FILE))
-    exit()
 
 
 def mouse_pressed():
@@ -103,6 +103,7 @@ def key_pressed():
     # print(mouse_x, mouse_y)
     if key == "e":
         save()
+        exit()
     elif key == "s":
         golf_start = p
         print("Start assigned")
