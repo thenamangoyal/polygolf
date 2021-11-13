@@ -22,9 +22,13 @@ pip install -r requirements.txt --user
 
 ## Usage
 
+### Simulator
+
 ```bash
 python main.py
 ```
+
+### Map Generation
 
 Generating map and saving to `<map_path>.json` file
 
