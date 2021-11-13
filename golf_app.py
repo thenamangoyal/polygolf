@@ -16,6 +16,7 @@ class GolfApp(App):
     def convert_coord(self, coord):
         coord = coord.translate(-self.translate.x, -self.translate.y)
         coord = coord.scale(x=self.scale, y=self.scale)
+        coord = coord.translate(constants.vis_width*constants.vis_padding, constants.vis_height*constants.vis_padding)
         return coord
 
     def draw_polygon(self, poly):
@@ -92,8 +93,9 @@ class GolfApp(App):
         mainContainer.append(self.score_table)
 
         self.load_map()
-        self.svgplot = gui.Svg(width="80vw", height="80vh", style={'background-color': '#BBDDFF', 'margin': '0 auto'})
-        # svgplot.set_viewbox(0, 0, constants.vis_width, constants.vis_height)
+        vis_scale_factor = (1.+2*constants.vis_padding)
+        self.svgplot = gui.Svg(width="80vw", height="80vh", style={'background-color': '#BBDDFF', 'margin': '0 auto', 'min-width': str(constants.vis_width*vis_scale_factor), 'min-height': str(constants.vis_height*vis_scale_factor)})
+        # svgplot.set_viewbox(0, 0, constants.vis_width*vis_scale_factor, constants.vis_height*vis_scale_factor)
 
         self.current_player_displayed = self.golf_game.get_current_player_idx()
         self.display_player(self.current_player_displayed)
