@@ -13,8 +13,9 @@ class GolfApp(App):
         super(GolfApp, self).__init__(*args, static_file_path={'res': res_path})
 
     def convert_coord(self, coord):
-        coord = coord.translate(-self.translate.x, -self.translate.y)
+        coord = coord.translate(self.translate.x, self.translate.y)
         coord = coord.scale(x=self.scale, y=self.scale)
+        coord = coord.translate(self.translate_center.x, self.translate_center.y)
         return coord
 
     def draw_polygon(self, poly):
@@ -91,9 +92,8 @@ class GolfApp(App):
         mainContainer.append(self.score_table)
 
         self.load_map()
-        vis_scale_factor = (1.+2*constants.vis_padding)
-        self.svgplot = gui.Svg(width="80vw", height="80vh", style={'background-color': '#BBDDFF', 'margin': '0 auto', 'min-width': str(constants.vis_width*vis_scale_factor), 'min-height': str(constants.vis_height*vis_scale_factor)})
-        # svgplot.set_viewbox(0, 0, constants.vis_width*vis_scale_factor, constants.vis_height*vis_scale_factor)
+        self.svgplot = gui.Svg(width="80vw", height="80vh", style={'background-color': '#BBDDFF', 'margin': '0 auto', 'min-width': str(self.width), 'min-height': str(self.height)})
+        # self.svgplot.set_viewbox(0, 0, self.width, self.height)
 
         self.current_player_displayed = self.golf_game.get_current_player_idx()
         self.display_player(self.current_player_displayed)
@@ -113,14 +113,17 @@ class GolfApp(App):
         self.golf_start = self.golf_game.golf.start
         self.golf_target = self.golf_game.golf.target
 
+        self.width = constants.vis_width*(1.+2*constants.vis_padding)
+        self.height = constants.vis_height*(1.+2*constants.vis_padding)
         bounds = self.golf_map.bounds
         xmin, ymin, xmax, ymax = list(map(float, bounds))
-        translate_x = ((xmin+xmax)/2) - (constants.vis_width/2)
-        translate_y = ((ymin+ymax)/2) - (constants.vis_height/2)
+        translate_x = -(xmin+xmax)/2
+        translate_y = -(ymin+ymax)/2
         self.translate = sympy.geometry.Point2D(translate_x, translate_y)
         self.scale = min(constants.vis_width/(xmax-xmin), constants.vis_height/(ymax-ymin))
+        self.translate_center = sympy.geometry.Point2D(self.width/2, self.height/2)
 
-        self.logger.info("Translating visualization by x={}, y={}".format(float(-self.translate.x), float(-self.translate.y)))
+        self.logger.info("Translating visualization by x={}, y={}".format(float(self.translate.x), float(self.translate.y)))
         self.logger.info("Scaling visualization by factor {}".format(float(self.scale)))
 
     def reset_svgplot(self, full_refresh=False):
