@@ -24,6 +24,12 @@ pip install -r requirements.txt --user
 python golf_game.py
 ```
 
+Generating map and saving to `<map_path>.json` file
+
+```bash
+python gen_map.py -f <map_path>.json
+```
+
 You can also specify the optional parameters below to disable GUI, disable browser launching, change port and address of server.
 
 ```bash
