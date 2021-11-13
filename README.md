@@ -23,7 +23,7 @@ pip install -r requirements.txt --user
 ## Usage
 
 ```bash
-python golf_game.py
+python main.py
 ```
 
 Generating map and saving to `<map_path>.json` file
@@ -53,10 +53,10 @@ optional arguments:
 You can also specify the optional parameters below to disable GUI, disable browser launching, change port and address of server.
 
 ```bash
-usage: golf_game.py [-h] [--map MAP] [--automatic] [--seed SEED] [--port PORT]
-                    [--address ADDRESS] [--no_browser] [--no_gui]
-                    [--log_path LOG_PATH] [--disable_timeout]
-                    [--disable_logging] [--players PLAYERS [PLAYERS ...]]
+usage: main.py [-h] [--map MAP] [--automatic] [--seed SEED] [--port PORT]
+               [--address ADDRESS] [--no_browser] [--no_gui]
+               [--log_path LOG_PATH] [--disable_timeout] [--disable_logging]
+               [--players PLAYERS [PLAYERS ...]]
 
 optional arguments:
   -h, --help            show this help message and exit
