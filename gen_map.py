@@ -37,16 +37,16 @@ def setup():
     global f, args
     size(args.width, args.height)
     f = create_font("Arial.ttf", 16)  # STEP 2 Create Font
+    text_font(f, 16)
+    text_align("CENTER")
 
 
 def draw():
     global map, golf_start, golf_target, f, args
     background(102)
-    text_font(f, 16)
-    text_align("CENTER")
     fill(0)
-    text("Press e to save and exit, s for start (red) and t for target (green)", (width/2, args.height*0.9))
-    text("Click in order to draw map polygon", (width/2, args.height*0.95))
+    text("Press e to save and exit, s for start (red) and t for target (green)", (int(width/2), int(args.height*0.9)))
+    text("start clicking anywhere to draw map polygon", (int(width/2), int(args.height*0.95)))
 
     stroke(0)
     fill(255)
