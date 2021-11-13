@@ -13,7 +13,7 @@ Install simulator packages only
 pip install -r requirements.txt
 ```
 
-Install map generation packages. Note the user option to avoid conflicts with system packages
+Install map generation packages. Note the `--user` option to avoid conflicts with system packages
 ```bash
 pip install -r requirements.txt --user
 ```
