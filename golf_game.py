@@ -245,6 +245,10 @@ class GolfGame:
     def play_all(self):
         if not self.is_game_ended():
             self.logger.debug("Playing all turns")
+            if self.use_gui:
+                self.golf_app.set_label_text("Playing all turns")
+                self.golf_app.set_label_text("Processing...", label_num=1)
+                self.golf_app.do_gui_update()
             while not self.is_game_ended():
                 self.play(run_stepwise=False, do_update=False, display_end=False)
             if self.use_gui:
@@ -281,6 +285,9 @@ class GolfGame:
                 self.__turn_end()
 
         else:
+            if do_update and self.use_gui:
+                self.golf_app.set_label_text("Processing...", label_num=1)
+                self.golf_app.do_gui_update()
             pass_next = False
             while not pass_next:
                 pass_next = self.__step(self.next_player, do_update=False)
