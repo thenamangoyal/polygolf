@@ -129,4 +129,8 @@ if __name__ == '__main__':
     if dir:
         os.makedirs(dir, exist_ok=True)
 
+    try:
+        builtins.title = "Map Generation auto-saving to {}".format(FILE)
+    except:
+        pass
     run(frame_rate=60)
