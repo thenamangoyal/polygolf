@@ -16,7 +16,6 @@ class GolfApp(App):
     def convert_coord(self, coord):
         coord = coord.translate(-self.translate.x, -self.translate.y)
         coord = coord.scale(x=self.scale, y=self.scale)
-        coord = coord.translate(constants.vis_width*constants.vis_padding, constants.vis_height*constants.vis_padding)
         return coord
 
     def draw_polygon(self, poly):
@@ -117,7 +116,9 @@ class GolfApp(App):
 
         bounds = self.golf_map.bounds
         xmin, ymin, xmax, ymax = list(map(float, bounds))
-        self.translate = sympy.geometry.Point2D(xmin, ymin)
+        translate_x = ((xmin+xmax)/2) - (constants.vis_width/2)
+        translate_y = ((ymin+ymax)/2) - (constants.vis_height/2)
+        self.translate = sympy.geometry.Point2D(translate_x, translate_y)
         self.scale = min(constants.vis_width/(xmax-xmin), constants.vis_height/(ymax-ymin))
 
         self.logger.info("Translating visualization by x={}, y={}".format(float(-self.translate.x), float(-self.translate.y)))
