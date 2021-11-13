@@ -246,7 +246,7 @@ class GolfGame:
         if not self.is_game_ended():
             self.logger.debug("Playing all turns")
             while not self.is_game_ended():
-                self.play(run_stepwise=False, do_update=False)
+                self.play(run_stepwise=False, do_update=False, display_end=False)
             if self.use_gui:
                 self.golf_app.display_player(len(self.player_names)-1)
                 self.golf_app.update_score_table()
@@ -254,7 +254,7 @@ class GolfGame:
         elif not self.end_message_printed:
             self.__game_end()
 
-    def play(self, run_stepwise=False, do_update=True):
+    def play(self, run_stepwise=False, do_update=True, display_end=True):
         if not self.processing_turn:
             if not self.is_game_ended():
                 if self.player_states[self.next_player] in constants.end_player_states:
@@ -270,7 +270,7 @@ class GolfGame:
                 self.player_states[self.next_player] = "P"
 
             else:
-                if not self.end_message_printed:
+                if display_end and not self.end_message_printed:
                     self.__game_end()
                 return
 
@@ -290,7 +290,7 @@ class GolfGame:
             self.__turn_end()
         
 
-        if self.is_game_ended() and not self.end_message_printed:
+        if display_end and self.is_game_ended() and not self.end_message_printed:
             self.__game_end()
 
     def __check_action(self, returned_action):
