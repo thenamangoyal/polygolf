@@ -30,6 +30,25 @@ Generating map and saving to `<map_path>.json` file
 python gen_map.py -f <map_path>.json
 ```
 
+## Optional Flags
+
+### Map Generation
+
+You can also specify the optional parameters below to change width, height and file path.
+
+```bash
+usage: gen_map.py [-h] [--file FILE] [--width WIDTH] [--height HEIGHT]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --file FILE, -f FILE  Path to export generated map
+  --width WIDTH         Width
+  --height HEIGHT       Height
+```
+
+
+### Simulator
+
 You can also specify the optional parameters below to disable GUI, disable browser launching, change port and address of server.
 
 ```bash
