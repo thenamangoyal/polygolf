@@ -13,7 +13,7 @@ from utils import *
 from players.default_player import Player as DefaultPLayer
 
 
-return_vals = ["player_names", "skills", "scores", "penalties", "winner_list", "total_time_sorted",  "timeout_count", "error_count"]
+return_vals = ["player_names", "skills", "scores", "player_states", "penalties", "timeout_count", "error_count", "winner_list", "total_time_sorted",]
 
 class GolfGame:
     def __init__(self, player_list, args):
