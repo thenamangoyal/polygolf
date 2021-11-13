@@ -8,6 +8,8 @@ end_player_states = ["S", "F"]
 
 vis_width = 1000
 vis_height = 550
+vis_width_ratio = 0.7
+vis_height_ratio = 0.7
 vis_padding = 0.02
 
 max_tries = 10
