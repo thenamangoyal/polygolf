@@ -86,7 +86,7 @@ def save():
 
     with open(FILE, "w") as f:
         json.dump(save_dict, f)
-    print("saved file {}".format(FILE))
+    print("Auto-saved file {}".format(FILE))
 
 
 def mouse_pressed():
@@ -95,7 +95,7 @@ def mouse_pressed():
     print(mouse_x, mouse_y)
     map.append(p)
     print("New Map", map)
-
+    save()
 
 def key_pressed():
     global map, golf_start, golf_target
@@ -107,10 +107,11 @@ def key_pressed():
     elif key == "s":
         golf_start = p
         print("Start assigned")
+        save()
     elif key == "t":
         golf_target = p
         print("Target assigned")
-
+        save()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
