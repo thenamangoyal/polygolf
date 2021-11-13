@@ -121,30 +121,37 @@ class GolfApp(App):
         self.logger.info("Translating visualization by x={}, y={}".format(float(-self.translate.x), float(-self.translate.y)))
         self.logger.info("Scaling visualization by factor {}".format(float(self.scale)))
 
-    def reset_svgplot(self):
-        self.svgplot.empty()
+    def reset_svgplot(self, full_refresh=False):
+        if full_refresh or len(self.svgplot.children) == 0:
+            self.svgplot.empty()
+            p = self.draw_polygon(self.golf_map)
+            # p.set_stroke(1, "black")
+            p.set_fill("#BBFF66")
+            self.svgplot.append(p)
 
-        p = self.draw_polygon(self.golf_map)
-        # p.set_stroke(1, "black")
-        p.set_fill("#BBFF66")
-        self.svgplot.append(p)
+            unit_t = sympy.geometry.Triangle(asa=(60, 10, 60))
+            golf_start_triangle = sympy.geometry.Triangle(*list(map(lambda p: p.translate(self.golf_start.x-unit_t.circumcenter.x, self.golf_start.y-unit_t.circumcenter.y), unit_t.vertices)))
+            t = self.draw_polygon(golf_start_triangle)
+            t.set_fill("red")
+            self.svgplot.append(t)
 
-        unit_t = sympy.geometry.Triangle(asa=(60, 10, 60))
-        golf_start_triangle = sympy.geometry.Triangle(*list(map(lambda p: p.translate(self.golf_start.x-unit_t.circumcenter.x, self.golf_start.y-unit_t.circumcenter.y), unit_t.vertices)))
-        t = self.draw_polygon(golf_start_triangle)
-        t.set_fill("red")
-        self.svgplot.append(t)
+            golf_target_circle = sympy.geometry.Circle(self.golf_target, constants.target_radius)
+            c = self.draw_circle(golf_target_circle)
+            c.set_fill("rgba(0,0,0,0.3)")
+            self.svgplot.append(c)
 
-        golf_target_circle = sympy.geometry.Circle(self.golf_target, constants.target_radius)
-        c = self.draw_circle(golf_target_circle)
-        c.set_fill("rgba(0,0,0,0.3)")
-        self.svgplot.append(c)
+            ps = self.draw_point(self.golf_start)
+            self.svgplot.append(ps)
 
-        ps = self.draw_point(self.golf_start)
-        self.svgplot.append(ps)
+            pe = self.draw_point(self.golf_target)
+            self.svgplot.append(pe)
+            self.base_keys = list(self.svgplot.children.keys())
+        else:
+            for k in list(self.svgplot.children.keys()):
+                if k not in self.base_keys:
+                    self.svgplot.remove_child(self.svgplot.children[k])
 
-        pe = self.draw_point(self.golf_target)
-        self.svgplot.append(pe)
+
 
     def display_player(self, player_idx):
         self.reset_svgplot()
