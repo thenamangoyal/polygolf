@@ -1,7 +1,6 @@
 numpy
 sympy
 remi
-p5
 pandas
 tqdm
 scipy
