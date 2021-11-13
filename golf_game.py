@@ -255,9 +255,6 @@ class GolfGame:
             self.__game_end()
 
     def play(self, run_stepwise=False, do_update=True):
-        old_label = self.golf_app.get_label_text(1)
-        if self.use_gui:
-            self.golf_app.set_label_text("Processing...", 1)
         if not self.processing_turn:
             if not self.is_game_ended():
                 if self.player_states[self.next_player] in constants.end_player_states:
@@ -292,8 +289,6 @@ class GolfGame:
                 self.golf_app.update_score_table()
             self.__turn_end()
         
-        if self.use_gui:
-            self.golf_app.set_label_text(old_label, 1)
 
         if self.is_game_ended() and not self.end_message_printed:
             self.__game_end()
