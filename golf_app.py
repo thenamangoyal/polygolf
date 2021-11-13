@@ -2,7 +2,6 @@ import logging
 import os
 import numpy as np
 import sympy
-from sympy.geometry.entity import translate
 import constants
 
 from remi import App, gui
