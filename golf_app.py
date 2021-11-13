@@ -160,8 +160,8 @@ class GolfApp(App):
 
 
 
-    def display_player(self, player_idx):
-        self.reset_svgplot()
+    def display_player(self, player_idx, full_refresh=False):
+        self.reset_svgplot(full_refresh)
         if player_idx is not None:
             for idx, step_play_dict in enumerate(self.golf_game.played[player_idx]):
                 self.plot(step_play_dict, idx+1)
@@ -180,10 +180,10 @@ class GolfApp(App):
             player_idx = None
         self.display_player(player_idx)
 
-    def match_display_with_game(self):
+    def match_display_with_game(self, full_refresh=False):
         player_idx = self.golf_game.get_current_player_idx()
         if player_idx is not None and self.current_player_displayed != player_idx:
-            self.display_player(player_idx)
+            self.display_player(player_idx, full_refresh)
 
     def play_step_bt_press(self, widget):
         self.golf_game.play(run_stepwise=True)
