@@ -9,11 +9,13 @@ Project 4 Polygolf - COMS 4444 Fall 2021 Programming and Problem Solving
 Requires **python3.6** or higher
 
 Install simulator packages only
+
 ```bash
 pip install -r requirements.txt
 ```
 
 Install map generation packages. Note the `--user` option to avoid conflicts with system packages
+
 ```bash
 pip install -r requirements.txt --user
 ```
@@ -46,7 +48,6 @@ optional arguments:
   --height HEIGHT       Height
 ```
 
-
 ### Simulator
 
 You can also specify the optional parameters below to disable GUI, disable browser launching, change port and address of server.
@@ -77,7 +78,6 @@ optional arguments:
   --players PLAYERS [PLAYERS ...], -p PLAYERS [PLAYERS ...]
                         List of players space separated
 ```
-
 
 ## Debugging
 
