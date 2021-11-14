@@ -209,7 +209,7 @@ class GolfGame:
             
             scores_array = np.array(self.scores, dtype=np.int) 
             winner_list_idx = np.argwhere(scores_array == np.amin(scores_array))
-            self.winner_list = [self.player_names[i[0]] for i in winner_list_idx if self.player_states[i[0]] == "S"]
+            self.winner_list = [self.player_names[i[0]] for i in winner_list_idx if self.player_states[i[0]] == "S"] # winner(s) should have min score and should solve the game
 
             self.logger.info("Winner{}: {}".format("s" if len(self.winner_list) > 1 else "", ", ".join(self.winner_list)))
             if self.use_gui:
