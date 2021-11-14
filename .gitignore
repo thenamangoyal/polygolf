@@ -144,3 +144,6 @@ log/
 
 # Tournament
 results/
+
+# Default gen map path
+maps/temp.json
