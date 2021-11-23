@@ -176,6 +176,8 @@ class GolfApp(App):
         self.current_player_displayed = player_idx
 
     def view_drop_down_changed(self, widget, value):
+        if self.automatic_play.get_value():
+            self.automatic_play.set_value(False)
         player_idx = widget.get_key()
         if player_idx >= len(self.golf_game.player_names):
             player_idx = None
