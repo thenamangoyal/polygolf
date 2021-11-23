@@ -31,6 +31,10 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        distance = sympy.Min(200+self.skill, curr_loc.distance(target)/(1.1))
+        required_dist = curr_loc.distance(target)
+        roll_factor = 1.1
+        if required_dist < 20:
+            roll_factor  = 1.0
+        distance = sympy.Min(200+self.skill, required_dist/roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
         return (distance, angle)
