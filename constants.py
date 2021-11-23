@@ -13,7 +13,7 @@ vis_height_ratio = 0.75
 vis_padding = 0.02
 
 max_tries = 10
-target_radius = 5.4
+target_radius = 0.054
 min_skill = 10
 max_skill = 100
 extra_roll = 0.1
