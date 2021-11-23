@@ -70,7 +70,7 @@ class GolfGame:
             args.seed = None
             self.logger.info("Initialise random number generator with no seed")
         else:
-            self.logger.info("Initialise random number generator with {} seed".format(args.seed))
+            self.logger.info("Initialise random number generator with seed {}".format(args.seed))
 
         self.rng = np.random.default_rng(args.seed)
 
@@ -362,7 +362,7 @@ class GolfGame:
             is_valid_action = self.__check_action(returned_action)
             if is_valid_action:
                 distance, angle = returned_action
-                self.logger.debug("Received distance: {}, angle: {} from {} in {:.3f}s".format(float(distance), float(angle), self.player_names[player_idx], step_time))
+                self.logger.debug("Received Distance: {:.3f}, Angle: {:.3f} from {} in {:.3f}s".format(float(distance), float(angle), self.player_names[player_idx], step_time))
                 if self.use_gui:
                     self.golf_app.set_label_text("{}, ({:.2f},{:.2f})".format(self.golf_app.get_label_text(), float(distance), float(angle)))
                 step_play_dict = self.__move(distance, angle, player_idx)
@@ -404,7 +404,7 @@ class GolfGame:
         curr_loc = self.curr_locs[player_idx]
         actual_distance = self.rng.normal(distance, distance/self.skills[player_idx])
         actual_angle = self.rng.normal(angle, 1/(2*self.skills[player_idx]))
-        self.logger.debug("Observed Distance: {}, Angle: {}".format(actual_distance, actual_angle))
+        self.logger.debug("Observed Distance: {:.3f}, Angle: {:.3f}".format(actual_distance, actual_angle))
 
         if distance <= constants.max_dist+self.skills[player_idx] and distance >= constants.min_putter_dist:
             landing_point = sympy.Point2D(curr_loc.x+actual_distance*sympy.cos(actual_angle), curr_loc.y+actual_distance*sympy.sin(actual_angle))
