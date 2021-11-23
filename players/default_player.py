@@ -8,7 +8,7 @@ class Player:
         self.rng = rng
         self.logger = logger
 
-    def play(self, golf_map, target, curr_loc):
+    def play(self, score, golf_map, target, curr_loc, prev_loc, prev_landing_point, prev_admissible):
         distance = min(200+self.skill, float(curr_loc.distance(target)/(1.1)))
         slope = (target.y - curr_loc.y)/(target.x - curr_loc.x)
         slope = float(slope)

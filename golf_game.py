@@ -321,7 +321,22 @@ class GolfGame:
                     signal.alarm(constants.timeout)
                 try:
                     start_time = time.time()
-                    returned_action = self.players[player_idx].play(golf_map=self.golf.golf_map.copy(), target=self.golf.target.copy(), curr_loc=self.curr_locs[player_idx].copy())
+                    prev_loc = None
+                    prev_landing_point = None
+                    prev_admissible = None
+                    if len(self.played[player_idx]):
+                        last_step_play_dict = self.played[player_idx][-1]
+                        prev_loc = last_step_play_dict["last_location"].copy()
+                        prev_landing_point = last_step_play_dict["observed_landing_point"].copy()
+                        prev_admissible = last_step_play_dict["admissible"]
+                    returned_action = self.players[player_idx].play(
+                        score=self.scores[player_idx],
+                        golf_map=self.golf.golf_map.copy(),
+                        target=self.golf.target.copy(),
+                        curr_loc=self.curr_locs[player_idx].copy(),
+                        prev_loc=prev_loc,
+                        prev_landing_point=prev_landing_point,
+                        prev_admissible=prev_admissible)
                     if self.use_timeout:
                         signal.alarm(0)      # Clear alarm
                 except TimeoutException:
@@ -341,18 +356,10 @@ class GolfGame:
                 self.logger.debug("Received distance: {}, angle: {} from {} in {:.3f}s".format(distance, angle, self.player_names[player_idx], step_time))
                 if self.use_gui:
                     self.golf_app.set_label_text("{}, ({:.2f},{:.2f})".format(self.golf_app.get_label_text(), float(distance), float(angle)))
-                segment_air, segment_land, final_point, admissible, reached_target = self.__move(distance, angle, player_idx)
+                step_play_dict = self.__move(distance, angle, player_idx)
                 
-                step_play_dict = dict()                
-                step_play_dict["segment_air"]= segment_air
-                step_play_dict["segment_land"]= segment_land
-                step_play_dict["final_point"]= final_point
-                step_play_dict["admissible"]= admissible
-                step_play_dict["reached_target"]= reached_target
-                
-                if admissible:
-                    self.curr_locs[player_idx] = final_point
-                else:
+                self.curr_locs[player_idx] = step_play_dict["observed_final_point"]
+                if not step_play_dict["admissible"]:
                     self.penalties[player_idx] += 1
 
                 self.played[player_idx].append(step_play_dict)
@@ -360,7 +367,7 @@ class GolfGame:
                 if do_update and self.use_gui:
                     self.golf_app.plot(step_play_dict, len(self.played[player_idx]))
                 
-                if reached_target:
+                if step_play_dict["reached_target"]:
                     self.logger.info("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
                     if self.use_gui:
                         self.golf_app.set_label_text("{} reached Target with score {}".format(self.player_names[player_idx], self.scores[player_idx]))
@@ -417,8 +424,22 @@ class GolfGame:
         admissible = False
         if self.golf.golf_map.encloses(segment_land):
             admissible = True
+            observed_final_point = final_point
+            observed_landing_point = landing_point
+        else:
+            observed_final_point = curr_loc
+            observed_landing_point = curr_loc
 
         reached_target = reached_target and admissible
-        return segment_air, segment_land, final_point, admissible, reached_target
+
+        step_play_dict = dict()                
+        step_play_dict["segment_air"]= segment_air
+        step_play_dict["segment_land"]= segment_land
+        step_play_dict["last_location"]= self.curr_locs[player_idx]
+        step_play_dict["observed_final_point"]= observed_final_point
+        step_play_dict["observed_landing_point"]= observed_landing_point
+        step_play_dict["admissible"]= admissible
+        step_play_dict["reached_target"]= reached_target
+        return step_play_dict
 
 
