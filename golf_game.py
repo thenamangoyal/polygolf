@@ -362,7 +362,7 @@ class GolfGame:
             is_valid_action = self.__check_action(returned_action)
             if is_valid_action:
                 distance, angle = returned_action
-                self.logger.debug("Received distance: {}, angle: {} from {} in {:.3f}s".format(distance, angle, self.player_names[player_idx], step_time))
+                self.logger.debug("Received distance: {}, angle: {} from {} in {:.3f}s".format(float(distance), float(angle), self.player_names[player_idx], step_time))
                 if self.use_gui:
                     self.golf_app.set_label_text("{}, ({:.2f},{:.2f})".format(self.golf_app.get_label_text(), float(distance), float(angle)))
                 step_play_dict = self.__move(distance, angle, player_idx)
