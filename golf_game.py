@@ -407,13 +407,13 @@ class GolfGame:
         self.logger.debug("Observed Distance: {}, Angle: {}".format(actual_distance, actual_angle))
 
         if distance <= constants.max_dist+self.skills[player_idx] and distance >= constants.min_putter_dist:
-            landing_point = sympy.Point2D(curr_loc.x+actual_distance*np.cos(actual_angle), curr_loc.y+actual_distance*np.sin(actual_angle))
-            final_point = sympy.Point2D(curr_loc.x+(1.+constants.extra_roll)*actual_distance*np.cos(actual_angle), curr_loc.y+(1.+constants.extra_roll)*actual_distance*np.sin(actual_angle))
+            landing_point = sympy.Point2D(curr_loc.x+actual_distance*sympy.cos(actual_angle), curr_loc.y+actual_distance*sympy.sin(actual_angle))
+            final_point = sympy.Point2D(curr_loc.x+(1.+constants.extra_roll)*actual_distance*sympy.cos(actual_angle), curr_loc.y+(1.+constants.extra_roll)*actual_distance*sympy.sin(actual_angle))
 
         elif distance < constants.min_putter_dist:
             self.logger.debug("Using Putter as provided distance {} less than {}".format(distance, constants.min_putter_dist))
             landing_point = curr_loc
-            final_point = sympy.Point2D(curr_loc.x+actual_distance*np.cos(actual_angle), curr_loc.y+actual_distance*np.sin(actual_angle))
+            final_point = sympy.Point2D(curr_loc.x+actual_distance*sympy.cos(actual_angle), curr_loc.y+actual_distance*sympy.sin(actual_angle))
 
         else:
             self.logger.debug("Provide invalid distance {}, distance should be < {}".format(distance, constants.max_dist+self.skills[player_idx]))
