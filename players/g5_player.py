@@ -31,17 +31,16 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        distance = min(200+self.skill, float(curr_loc.distance(target)/(1.1)))
+        distance = sympy.Min(200+self.skill, curr_loc.distance(target)/(1.1))
         slope = (target.y - curr_loc.y)/(target.x - curr_loc.x)
-        slope = float(slope)
-        angle = np.arctan(np.abs(slope))
+        angle = sympy.atan(sympy.Abs(slope))
         if slope > 0 and curr_loc.x <= target.x:
             angle = angle
         elif slope > 0 and curr_loc.x > target.x:
-            angle = np.pi + angle
+            angle = sympy.pi + angle
         elif slope < 0 and curr_loc.x <= target.x:
-            angle = 2*np.pi - angle
+            angle = 2*sympy.pi - angle
         else:
             # means slope < 0 and curr_loc.x > target.x:
-            angle = np.pi - angle
+            angle = sympy.pi - angle
         return (distance, angle)
