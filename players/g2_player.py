@@ -6,6 +6,7 @@ from sympy.geometry import Polygon, Point2D
 from scipy.stats import norm
 from matplotlib.path import Path
 
+
 def splash_zone(distance: float, angle: float, conf: float, skill: int, current_point: Point2D) -> List[Tuple[float, float]]:
     curr_x, curr_y = current_point.x, current_point.y
     conf_points = np.linspace(1 - conf, conf, 100)
@@ -49,11 +50,11 @@ def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
     x_step = 1  # meter
     y_step = 1  # meter
 
-    x_current = x_min
-    y_current = y_min
+    x_current = x_min + x_step
+    y_current = y_min + y_step
     while x_current < x_max:
         while y_current < y_max:
-            yield Point2D([current_x, current_y], evaluate=False)
+            yield x_current, y_current
             y_current += y_step
         y_current = y_min
         x_current += x_step
@@ -123,11 +124,12 @@ class Player:
         distance = sympy.Min(200+self.skill, required_dist/roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
 
-
-
-
         return (distance, angle)
 
+
+
+
+# === Unit Tests ===
 
 def test_reachable():
     current_point = Point2D(0, 0, evaluate=False)
@@ -147,6 +149,7 @@ def test_point_within_polygon():
     assert point_within_polygon(inside, poly)
     assert not point_within_polygon(outside, poly)
 
+
 def test_splash_zone_within_polygon():
     poly = Polygon((0,0), (0, 300), (300, 300), (300, 0), evaluate=False)
 
@@ -159,3 +162,12 @@ def test_splash_zone_within_polygon():
     player = Player(50, 0xdeadbeef, None)
     assert player.splash_zone_within_polygon(current_point, inside_target_point, poly, 0.8)
     assert not player.splash_zone_within_polygon(current_point, outside_target_point, poly, 0.8)
+
+
+def test_poly_to_points():
+    poly = Polygon((0,0), (0, 10), (10, 10), (10, 0))
+    points = set(poly_to_points(poly))
+    for x in range(1, 10):
+        for y in range(1, 10):
+            assert (x,y) in points
+    assert len(points) == 81
