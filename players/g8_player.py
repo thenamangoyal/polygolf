@@ -5,6 +5,7 @@ from typing import Tuple
 import constants
 from time import time
 from shapely.geometry import Polygon, Point
+from math import pi, atan2
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -21,6 +22,14 @@ class Player:
 
         self.shapely_polygon = None
         self.np_curr_loc = np.empty(2)
+        self.np_target = np.empty(2)
+
+        self.n_distances = 20
+        self.n_angles = 50
+
+        self.angle_offset = pi/4 # 45 deg
+
+        self.min_conf = 0.50
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
@@ -43,17 +52,29 @@ class Player:
             self.shapely_polygon = Polygon([(p.x,p.y) for p in golf_map.vertices])
 
         np.copyto(self.np_curr_loc, curr_loc.coordinates, casting='unsafe')
+        np.copyto(self.np_target, target.coordinates, casting='unsafe')
 
         required_dist = curr_loc.distance(target)
         roll_factor = 1.1
         if required_dist < 20:
             roll_factor  = 1.0
-        distance = sympy.Min(200+self.skill, required_dist/roll_factor)
-        angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+        max_distance = min(200+self.skill, required_dist/roll_factor)
+        target_angle = atan2(target.y - curr_loc.y, target.x - curr_loc.x)
 
-        print('shot conf:', self.est_shot_conf(distance, angle))
+        min_target_dist = float('inf')
+        out = (0,0)
+        for distance in np.arange(0, max_distance, self.n_distances):
+            for angle in np.arange(target_angle-self.angle_offset, target_angle+self.angle_offset, self.n_angles):
+                conf = self.est_shot_conf(distance, angle)
+                print(conf)
+                if conf >= self.min_conf:
+                    p = self.np_curr_loc + distance * np.array([np.cos(angle), np.sin(angle)])
+                    target_dist = np.linalg.norm(self.np_target - p)
+                    if target_dist < min_target_dist:
+                        min_target_dist = target_dist
+                        out = (distance, angle)
 
-        return (distance, angle)
+        return out
 
     def est_shot_conf(self, distance: float, angle: float, n_tries: int = 100, n_points_on_seg: int = 10):
         start_time = time()
