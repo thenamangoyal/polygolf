@@ -63,22 +63,23 @@ class Player:
 
         min_target_dist = float('inf')
         out = (0,0)
-        distance_step = float(max_distance) / self.n_distances
-        angle_step = (2 * self.angle_offset) / self.n_angles
-        for distance in np.arange(distance_step, float(max_distance) + distance_step, distance_step):
-            for angle in np.arange(target_angle-self.angle_offset, target_angle+self.angle_offset+angle_step, angle_step):
+        for distance in np.linspace(float(max_distance), float(max_distance) / self.n_distances, num=self.n_distances, endpoint=True):
+            best_conf = 0
+            for angle in np.linspace(target_angle-self.angle_offset, target_angle+self.angle_offset, num=self.n_angles, endpoint=True):
                 conf = self.est_shot_conf(distance, angle)
                 p = self.np_curr_loc + distance * np.array([np.cos(angle), np.sin(angle)])
                 target_dist = np.linalg.norm(self.np_target - p)
-                # print(distance, angle, conf)
                 if conf >= self.min_conf:
                     if target_dist < min_target_dist:
                         min_target_dist = target_dist
                         out = (distance, angle)
+                        best_conf = conf
+            if best_conf > 0.99:
+                break
 
         return out
 
-    def est_shot_conf(self, distance: float, angle: float, n_tries: int = 100, n_points_on_seg: int = 10):
+    def est_shot_conf(self, distance: float, angle: float, n_tries: int = 50, n_points_on_seg: int = 7):
         start_time = time()
         n_valid = 0
 
@@ -125,8 +126,7 @@ class Player:
             # check if n_points_on_seg are inside polygon
             seg_inside_poly = True
             np.subtract(final_point, landing_point, out=direction)
-            i_step = 1 / n_points_on_seg
-            for i in np.arange(0, 1 + i_step, i_step):
+            for i in np.linspace(0, 1, num=n_points_on_seg, endpoint=True):
                 np.multiply(i, direction, out=temp)
                 np.add(landing_point, temp, out=p)
                 if not self.shapely_polygon.contains(Point(p[0], p[1])):
