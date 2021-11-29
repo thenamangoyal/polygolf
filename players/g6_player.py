@@ -46,7 +46,7 @@ class Player:
                         valid_edge += 1
             # return True
         if valid_edge >= 8:
-            print("valid")
+            # print("valid")
             return True
         else:
             return False
