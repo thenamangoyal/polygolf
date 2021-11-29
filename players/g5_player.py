@@ -34,7 +34,7 @@ class Player:
     def search_landing_points(self, landing_points, curr_loc, map):
         for landing_point in landing_points:
             angle, distance = self.calculate_angle_and_distance(curr_loc, landing_point)
-            print(distance, angle)
+            #print(distance, angle)
             if self.is_roll_in_polygon(curr_loc, distance, angle, map):
                 return distance, angle
             
@@ -83,5 +83,5 @@ class Player:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
         point_list = self.get_targets(target, curr_loc)
-        print(point_list)
+        #print(point_list)
         return self.search_landing_points(point_list, curr_loc, golf_map)
