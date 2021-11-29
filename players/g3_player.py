@@ -233,7 +233,7 @@ class Player:
                 return float('inf')
             avg = sum(valid_scores) / len(valid_scores)
             miss_prob = (n - len(valid_scores)) / n
-            return avg / (1 - miss_prob)
+            return avg + miss_prob / (1 - miss_prob)
 
         def simulate_one(candidate: Tuple[float, float]) -> Optional[float]:
             distance, angle = candidate
@@ -246,7 +246,7 @@ class Player:
 
                 real_distance = np.random.normal(distance, distance / self.skill)
                 real_angle = angle + np.random.normal(0, 1 / (2 * self.skill))
-                if distance < 20:  # putter
+                if distance < constants.min_putter_dist:  # putter
                     scores.append(self.evaluate_putter(current_position, real_distance, real_angle))
                 else:
                     scores.append(self.evaluate(current_position, real_distance, real_angle))
