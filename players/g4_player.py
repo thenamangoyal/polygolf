@@ -63,6 +63,7 @@ class Player:
 
         # 2. if we cannot use greedy, we try to find the points intersected with the golf map
         circle = sympy.Circle(curr_loc, distance)
+        # TODO: cost about 6-8 seconds, too slow
         intersect_points_origin = circle.intersection(golf_map)
 
         # delete useless intersection points
@@ -80,6 +81,7 @@ class Player:
                 middle_point = sympy.Point2D((intersect_points[i].x + intersect_points[j].x) / 2,
                                                    (intersect_points[i].y + intersect_points[j].y) / 2)
                 # find points that in the golf map polygon
+                # TODO: cost about 8 seconds, too slow
                 if golf_map.encloses_point(middle_point):
                     # print(i, j)
                     middle_points.append(middle_point)
