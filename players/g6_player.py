@@ -1,6 +1,6 @@
 import numpy as np
 import sympy
-from sympy import Point, Polygon
+from shapely.geometry import Polygon, Point
 import math
 import logging
 from typing import Tuple
@@ -18,30 +18,78 @@ class Player:
         self.rng = rng
         self.logger = logger
 
-    def validate_node(self, golf_map, x, y, step):
+        self.shapely_poly = None
+        self.graph = {}
+
+    def validate_node(self, x, y, step):
         """ Function which determines if a node of size step x step centered at (x, y) is a valid node in our 
-        golf_map
+        self.shapely_poly 
 
         Args:
-            golf_map (sympy.Polygon): Golf Map polygon
             x (float): x-coordinate of node
             y (float): y-coordinate of node
             step (float): size of node
+
+        Returns:
+            Boolean: True if node is valid in our map
          """
 
         # 1. Node center must be inside graph
         valid_edge = 0
-        if (golf_map.encloses_point(Point(x, y))):
+        if (self.shapely_poly.contains(Point(x, y))):
             # 2. 7/8 points on edge of node must be in graph (we'll count as 8/9, including center)
             for i in np.arange(y - (step / 2), y + step, step / 2):
                 for j in np.arange(x - (step / 2), x + step, step / 2):
-                    if (golf_map.encloses_point(Point(j , i))):
+                    if (self.shapely_poly.contains(Point(j , i))):
                         valid_edge += 1
             #return True
         if (valid_edge >= 8):
+            print("valid")
             return True
         else:
             return False
+
+    def graph_gen(self, golf_map, leftest, rightest, highest, lowest, step, target):
+        """Function which creates a graph on self.graph based on constraints, with valid nodes
+
+        Args:
+            golf_map (sympy.Polygon): Golf Map polygon
+            leftest, rightest, highest, lowest (int): limits of map
+            step (float): size of node
+            target (sympy.geometry.Point2D): Target location
+        """
+        self.graph = {}
+        self.shapely_poly = Polygon([(p.x,p.y) for p in golf_map.vertices])
+
+        """ Graph Creation
+        - Goes from left lower to right upper of designated range
+        - Select nodes of size (step x step)
+            1. Node center must be inside graph
+            2. 7 / 8 points on edge of node must be in graph (we'll count as 8/9, including center)
+            3. nodes can extend horizontally to create one big node
+        """        
+        for y in np.arange(lowest, highest + step, step):
+            # 3. nodes can extend horizontally to create one big node
+            x = leftest
+            while(x < rightest + step):
+                
+                if (self.validate_node(x, y, step)):
+                    more_nodes = 0
+                    while (self.validate_node(x + step, y, step)):
+                        more_nodes += 1
+                        x += step
+                
+                    center_x = x - (more_nodes * step) / 2
+
+                    self.graph[(center_x, y)] = []
+                x += step
+            """ for x in np.arange(leftest, rightest + step, step):
+                if (self.validate_node(x, y, step)):
+                    graph[(x, y)] = [] """
+        
+        # add target point as node
+        self.graph[(target.x, target.y)] = []
+
         
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
@@ -60,7 +108,6 @@ class Player:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
 
-        
         required_dist = curr_loc.distance(target)
         """ 
         Case 1: required_dist > 20m
@@ -72,7 +119,7 @@ class Player:
 
         # Case 1: required_dist > 20m
         if (required_dist > 20):
-            step = 20
+            step = 10
             # Detect edges of map
             map_ver = golf_map.vertices
             center = golf_map.centroid
@@ -101,38 +148,12 @@ class Player:
             rightest = math.ceil(curr_loc.x + 20)
             highest = math.ceil(curr_loc.y + 20)
             lowest = math.floor(curr_loc.y - 20)
-
-
-        """ Graph Creation
-        - Goes from left lower to right upper of designated range
-        - Select nodes of size (step x step)
-            1. Node center must be inside graph
-            2. 7 / 8 points on edge of node must be in graph (we'll count as 8/9, including center)
-            3. nodes can extend horizontally to create one big node
-        """
-        graph = {}
-
-        for y in np.arange(lowest, highest + step, step):
-            print("this y: ", y)
-            print("x range: ", [leftest, rightest])
-            # 3. nodes can extend horizontally to create one big node
-            x = leftest
-            while(x < rightest + step):
-                
-                if (self.validate_node(golf_map, x, y, step)):
-                    print("this x: ", x)
-                    more_nodes = 0
-                    while (self.validate_node(golf_map, x + step, y, step)):
-                        more_nodes += 1
-                        x += step
-                
-                    center_x = x - (more_nodes * step) / 2
-
-                    graph[Point(center_x, y)] = []
-                x += step
+            self.graph_gen(golf_map, leftest, rightest, highest, lowest, step, target)
         
-        # add target point as node
-        graph[target] = []
+
+        if (score == 1):
+            self.graph_gen(golf_map, leftest, rightest, highest, lowest, step, target)
+        
 
         roll_factor = 1.1
         if required_dist < 20:
