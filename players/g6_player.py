@@ -67,6 +67,7 @@ class Player:
             1. Node center must be inside graph
             2. 7 / 8 points on edge of node must be in graph (we'll count as 8/9, including center)
             3. nodes can extend horizontally to create one big node
+        - Each node is stored as [(x0, y0), (x1, y1), ...] or simply [(x0, y0)]
         """        
         for y in np.arange(lowest, highest + step, step):
             # 3. nodes can extend horizontally to create one big node
@@ -79,9 +80,14 @@ class Player:
                         more_nodes += 1
                         x += step
                 
-                    center_x = x - (more_nodes * step) / 2
+                    #center_x = x - (more_nodes * step) / 2
+                    left = x - (more_nodes * step)
+                    right = x + step
+                    new_key = ()
+                    for i in np.arange(left, right, step):
+                        new_key = new_key + ((i, y),)
 
-                    self.graph[(center_x, y)] = []
+                    self.graph[new_key] = []
                 x += step
             """ for x in np.arange(leftest, rightest + step, step):
                 if (self.validate_node(x, y, step)):
@@ -155,6 +161,13 @@ class Player:
             self.graph_gen(golf_map, leftest, rightest, highest, lowest, step, target)
         
 
+        # add curr_loc every turn
+        self.graph[(curr_loc.x, curr_loc.y)] = []
+
+        # remove curr_loc every turn
+        self.graph.pop((curr_loc.x, curr_loc.y), None)
+
+        
         roll_factor = 1.1
         if required_dist < 20:
             roll_factor  = 1.0
