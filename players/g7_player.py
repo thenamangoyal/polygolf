@@ -66,4 +66,15 @@ class Player:
         distance = sympy.Min(200+self.skill, required_dist/roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
         new_distance, new_angle = self.find_shot(distance, angle, curr_loc, target, roll_factor, golf_map)
+
+        angle_adjusted = sympy.pi/18
+        while new_distance == None:
+            new_distance, new_angle = self.find_shot(distance, angle+angle_adjusted, curr_loc, target, roll_factor, golf_map)
+            if new_distance == None:
+                new_distance, new_angle = self.find_shot(distance, angle-angle_adjusted, curr_loc, target, roll_factor, golf_map)
+            angle_adjusted += sympy.pi/18
+            if angle_adjusted == sympy.pi:
+                print("Edge Case Hitted: Cannot find angle to shoot more than 0.5 of max distance.")
+                break
+
         return (new_distance, new_angle)
