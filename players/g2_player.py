@@ -127,6 +127,7 @@ class Player:
         self.map_points = None
         self.mpl_poly = None
         self.goal = None
+        self.prev_rv = None
 
     def reachable_point(self, current_point: Tuple[float, float], target_point: Tuple[float, float], conf: float) -> bool:
         """Determine whether the point is reachable with confidence [conf] based on our player's skill"""
@@ -231,7 +232,15 @@ class Player:
             self._initialize_map_points(golf_map)
             self.goal = float(target.x), float(target.y)
 
-        target_point = self.next_target(curr_loc, target, 0.95)
+        # Optimization to retry missed shots
+        if self.prev_rv is not None and curr_loc == prev_loc:
+            return self.prev_rv
+
+        target_point = None
+        confidence = 0.95
+        while target_point is None:
+            target_point = self.next_target(curr_loc, target, confidence)
+            confidence -= 0.05
 
         # fixup target
         current_point = np.array(tuple(curr_loc)).astype(float)
@@ -247,9 +256,10 @@ class Player:
         cx, cy = current_point
         tx, ty = target_point
         angle = np.arctan2(ty - cy, tx - cx)
-        # angle = float(sympy.atan2(target_point.y - curr_loc.y, target_point.x - curr_loc.x))
 
-        return curr_loc.distance(Point2D(target_point, evaluate=False)), angle
+        rv = curr_loc.distance(Point2D(target_point, evaluate=False)), angle
+        self.prev_rv = rv
+        return rv
 
 
 # === Unit Tests ===
