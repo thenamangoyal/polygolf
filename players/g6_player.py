@@ -4,6 +4,7 @@ from shapely.geometry import Polygon, Point
 import math
 import logging
 from typing import Tuple
+from collections import defaultdict
 
 
 class Player:
@@ -167,7 +168,43 @@ class Player:
             node_center_y = (mid_left_unit_center[1] + mid_right_unit_center[1]) / 2
             node_center = (node_center_x, node_center_y)
         return node_center
+    
+    def BFS(self, target):
+        """Function that performs BFS on the graph of nodes to find a path to the target, prioritizing minimum
+        moves in order to minimize our score.
+        
+        Returns:
+            Node to make a move towards.
+        """
+        visited = defaultdict(int)
+        compare_target = ((target.x, target.y),)
+        queue = []
+        queue.append(['curr_loc'])
+        final_path = []
+        while queue:
+            path = queue.pop(0)
+            node = path[-1]
+            if node == compare_target:
+                #print(path)
+                final_path =  path
+                break
+            
+            if visited[node] > 0 and visited[node] <= len(path):
+                continue
+            
+            visited[node] = len(path)
 
+            adj = self.graph[node]
+            for a in adj:
+                new_path = list(path)
+                new_path.append(a)
+                queue.append(new_path)
+        if len(final_path) < 2:
+            return "default"
+        move = final_path[1]
+        return sympy.geometry.Point2D(self.all_nodes_center[move][0], self.all_nodes_center[move][1])
+
+        
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
              curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D,
              prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
@@ -234,10 +271,19 @@ class Player:
             lowest = math.floor(curr_loc.y - 20)
             self.construct_nodes(golf_map, leftest, rightest, highest, lowest, step, target)
             self.construct_edges(curr_loc, only_construct_from_source=False)
+        move = self.BFS(target)
 
         roll_factor = 1.1
         if required_dist < 20:
             roll_factor = 1.0
-        distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
-        angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+        
+        if move == "default":
+            distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
+            angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+            return (distance, angle)
+        
+        distance = curr_loc.distance(move)/roll_factor
+        angle = sympy.atan2(move.y - curr_loc.y, move.x - curr_loc.x)
+        #distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
+        #angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
         return (distance, angle)
