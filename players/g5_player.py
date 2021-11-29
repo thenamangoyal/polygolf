@@ -16,6 +16,27 @@ class Player:
         self.rng = rng
         self.logger = logger
 
+    def get_targets(self, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D):
+        required_dist = curr_loc.distance(target)
+        roll_factor = 1.1
+        if required_dist < 20:
+            roll_factor  = 1.0 
+        max_dist_traveled = 200 + self.skill
+        distance = sympy.Min(max_dist_traveled, required_dist/roll_factor)
+        angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+        farthest_point = (curr_loc.x+distance*sympy.cos(angle), curr_loc.y + distance*sympy.sin(angle))
+        cone_angle = sympy.atan2(curr_loc.y - farthest_point.y, curr_loc.x - farthest_point.x)
+        
+        point_list = []
+        for r in range(distance):
+            for theta in range(sympy.pi/4):
+                if theta == 0:
+                    point_list.append((farthest_point.x + r*sympy.cos(cone_angle), farthest_point.y + r*sympy.sin(cone_angle)))
+                else:
+                    point_list.append((farthest_point.x + r*sympy.cos(cone_angle+theta), farthest_point.y + r*sympy.sin(cone_angle+theta)))
+                    point_list.append((farthest_point.x + r*sympy.cos(cone_angle-theta), farthest_point.y + r*sympy.sin(cone_angle-theta)))
+        return point_list
+
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
 
