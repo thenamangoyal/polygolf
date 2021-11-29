@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import sympy
 import logging
@@ -78,12 +80,10 @@ class Player:
 
         for i in range(intersect_points_num):
             for j in range(i + 1, intersect_points_num):
-                middle_point = sympy.Point2D((intersect_points[i].x + intersect_points[j].x) / 2,
-                                                   (intersect_points[i].y + intersect_points[j].y) / 2)
+                middle_point = sympy.Point2D(float(intersect_points[i].x + intersect_points[j].x) / 2,
+                                             float(intersect_points[i].y + intersect_points[j].y) / 2)
                 # find points that in the golf map polygon
-                # TODO: cost about 8 seconds, too slow
-                if golf_map.encloses_point(middle_point):
-                    # print(i, j)
+                if golf_map.encloses(middle_point):
                     middle_points.append(middle_point)
 
         if len(middle_points) == 0:
@@ -119,10 +119,12 @@ class Player:
 
         desire_distance = distance
         if midd_index != -1:
+            self.logger.info("select distance to middle point to go")
             desire_angle = sympy.atan2(middle_points[midd_index].y - curr_loc.y,
                                        middle_points[midd_index].x - curr_loc.x)
             return (desire_distance, desire_angle)
 
+        self.logger.info("select middle point to go")
         # 3. if everywhere is not safe, we try middle_points and choose the middle point that closest to target
         mid_to_target_distance = [0] * middle_points_num
         for i, middle_point in enumerate(middle_points):
@@ -157,4 +159,3 @@ class Player:
 
         segment_land = sympy.geometry.Segment2D(landing_point, final_point)
         return golf_map.encloses(segment_land), final_point
-
