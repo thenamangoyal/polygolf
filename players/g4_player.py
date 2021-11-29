@@ -23,6 +23,7 @@ class Player:
         self.risk = 0.1
         self.simulate_times = 10
         self.tolerant_times = self.simulate_times * self.risk
+        self.remember_middle_points = []
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
              curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D,
@@ -64,31 +65,36 @@ class Player:
             return (distance, angle)
 
         # 2. if we cannot use greedy, we try to find the points intersected with the golf map
-        circle = sympy.Circle(curr_loc, distance)
-        # TODO: cost about 6-8 seconds, too slow
-        intersect_points_origin = circle.intersection(golf_map)
+        if prev_admissible is None or prev_admissible or not self.remember_middle_points:
+            circle = sympy.Circle(curr_loc, distance)
+            # TODO: cost about 6-8 seconds, too slow
+            intersect_points_origin = circle.intersection(golf_map)
 
-        # delete useless intersection points
-        intersect_points = []
-        for i in range(len(intersect_points_origin)):
-            intersect_distance = intersect_points_origin[i].distance(target)
-            if intersect_distance <= required_dist:
-                intersect_points.append(intersect_points_origin[i])
+            # delete useless intersection points
+            intersect_points = []
+            for i in range(len(intersect_points_origin)):
+                intersect_distance = intersect_points_origin[i].distance(target)
+                if intersect_distance <= required_dist:
+                    intersect_points.append(intersect_points_origin[i])
 
-        intersect_points_num = len(intersect_points)
-        middle_points = []
+            intersect_points_num = len(intersect_points)
+            middle_points = []
 
-        for i in range(intersect_points_num):
-            for j in range(i + 1, intersect_points_num):
-                middle_point = sympy.Point2D(float(intersect_points[i].x + intersect_points[j].x) / 2,
-                                             float(intersect_points[i].y + intersect_points[j].y) / 2)
-                # find points that in the golf map polygon
-                if golf_map.encloses(middle_point):
-                    middle_points.append(middle_point)
+            for i in range(intersect_points_num):
+                for j in range(i + 1, intersect_points_num):
+                    middle_point = sympy.Point2D(float(intersect_points[i].x + intersect_points[j].x) / 2,
+                                                 float(intersect_points[i].y + intersect_points[j].y) / 2)
+                    # find points that in the golf map polygon
+                    if golf_map.encloses(middle_point):
+                        middle_points.append(middle_point)
 
-        if len(middle_points) == 0:
-            self.logger.error("cannot find any middle point, BUG!!!")
-            return (distance, angle)
+            if len(middle_points) == 0:
+                self.logger.error("cannot find any middle point, BUG!!!")
+                return (distance, angle)
+
+            self.remember_middle_points = middle_points
+        else:
+            middle_points = list(self.remember_middle_points)
 
         middle_points_num = len(middle_points)
         mid_to_target_distance = [0] * middle_points_num
