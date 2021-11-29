@@ -4,3 +4,4 @@ remi
 pandas
 tqdm
 scipy
+matplotlib
