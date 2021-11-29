@@ -125,8 +125,8 @@ class Player:
                         continue
                     can_reach_one_unit = False  # whether at least one Unit in to_node is reachable from from_node
                     for unit_center in to_node:
-                        if not isinstance(unit_center, tuple):
-                            print(unit_center)
+                        #if not isinstance(unit_center, tuple):
+                            #print(unit_center)
                         if curr_loc.distance(sympy.geometry.Point2D(unit_center)) > self.skill:  # if outside our skill range
                             continue
                         can_reach_one_unit = True
