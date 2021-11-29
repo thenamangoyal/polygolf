@@ -16,6 +16,27 @@ class Player:
         self.rng = rng
         self.logger = logger
 
+    def calculate_angle_and_distance(self, point_a, point_b):
+        distance = point_a.distance(point_b)
+        angle = sympy.atan2(point_b.y - point_a.y, point_b.x - point_a.x)
+        return angle, distance
+
+    def is_roll_in_polygon(self, curr_point, distance, angle, map):
+        curr_point = sympy.Point2D(curr_point.x + distance * sympy.cos(angle),
+                                   curr_point.y + distance * sympy.sin(angle))
+        final_point = sympy.Point2D(
+            curr_point.x + (1.1) * distance * sympy.cos(angle),
+            curr_point.y + (1.1) * distance * sympy.sin(angle))
+
+        segment_land = sympy.geometry.Segment2D(curr_point, final_point)
+        return map.encloses(segment_land)
+
+    def search_landing_points(self, landing_points, curr_loc, map):
+        for landing_point in landing_points:
+            angle, distance = self.calculate_angle_and_distance(curr_loc, landing_point)
+            if self.is_roll_in_polygon(curr_loc, distance, angle, map):
+                return angle, distance
+
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
 
