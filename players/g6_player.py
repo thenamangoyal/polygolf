@@ -69,9 +69,9 @@ class Player:
             3. nodes can extend horizontally to create one big node
         - Each node is stored as [(x0, y0), (x1, y1), ...] or simply [(x0, y0)]
         """        
-        for y in np.arange(lowest, highest + step, step):
+        for y in np.arange(lowest + (step / 2), highest + step, step):
             # 3. nodes can extend horizontally to create one big node
-            x = leftest
+            x = leftest + (step / 2)
             while(x < rightest + step):
                 
                 if (self.validate_node(x, y, step)):
@@ -167,7 +167,7 @@ class Player:
         # remove curr_loc every turn
         self.graph.pop((curr_loc.x, curr_loc.y), None)
 
-        
+
         roll_factor = 1.1
         if required_dist < 20:
             roll_factor  = 1.0
