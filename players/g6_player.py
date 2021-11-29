@@ -199,7 +199,8 @@ class Player:
                 new_path = list(path)
                 new_path.append(a)
                 queue.append(new_path)
-            
+        if len(final_path) < 2:
+            return "default"
         move = final_path[1]
         return sympy.geometry.Point2D(self.all_nodes_center[move][0], self.all_nodes_center[move][1])
 
@@ -271,9 +272,16 @@ class Player:
             self.construct_nodes(golf_map, leftest, rightest, highest, lowest, step, target)
             self.construct_edges(curr_loc, only_construct_from_source=False)
         move = self.BFS(target)
+
         roll_factor = 1.1
         if required_dist < 20:
             roll_factor = 1.0
+        
+        if move == "default":
+            distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
+            angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+            return (distance, angle)
+        
         distance = curr_loc.distance(move)/roll_factor
         angle = sympy.atan2(move.y - curr_loc.y, move.x - curr_loc.x)
         #distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
