@@ -46,8 +46,21 @@ class Player:
         self.centerset =set()
         self.centers2 = []
         self.target = (0,0)
+        self.turns = 0
+    def point_inside_polygon(self,poly, p) -> bool:
+    # http://paulbourke.net/geometry/polygonmesh/#insidepoly
+        n = len(poly)
+        inside = False
+        p1 = poly[0]
+        for i in range(1, n + 1):
+            p2 = poly[i % n]
+            if min(p1.y, p2.y) < p.y <= max(p1.y, p2.y) and p.x <= max(p1.x, p2.x) and p1.x != p2.y:
+                xints = (p.y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y) + p1.x
+                if p1.x == p2.x or p.x <= xints:
+                    inside = not inside
+            p1 = p2
+        return inside
         
-    
     def segmentize_map(self, golf_map ):
         area_length = 10
         beginx = area_length/2
@@ -60,9 +73,12 @@ class Player:
             tmp = []    
             for j in range(int(beginy), int(endy), area_length):
                 representative_point = Point2D(i,j)
-                tmp.append(representative_point)
-                node_centers.append(representative_point)
-                self.centerset.add((i,j))
+                if self.point_inside_polygon(golf_map.vertices,sympy.geometry.Point2D(i , j)):
+                    tmp.append(representative_point)
+                    node_centers.append(representative_point)
+                    self.centerset.add((i,j))
+                else:
+                    tmp.append(None)
             node_centers2.append(tmp)
         self.centers = node_centers
         self.centers2 = node_centers2
@@ -129,7 +145,7 @@ class Player:
 
     def is_neighbour(self, curr_loc, target_loc):
         current_point = curr_loc
-        target_point = tuple(target_loc)
+        target_point = target_loc
         current_point = np.array(current_point).astype(float)
         target_point = np.array(target_point).astype(float)
         max_dist = 200 + self.skill
@@ -141,7 +157,8 @@ class Player:
 
     def adjacent_cells(self, point):
         if self.is_neighbour(point, self.target):
-            return self.target
+            print('target close!')
+            return [self.target]
         neighbours = []
         for center in self.centers:
             if self.is_neighbour(point, center):
@@ -160,19 +177,19 @@ class Player:
         while openSet:
             next_pointC = heapq.heappop(openHeap)
             next_point = next_pointC.point
-            print(next_point)
+            #print(next_point)
             #reached the goal
             if np.linalg.norm(np.array(self.target).astype(float) - np.array(next_point).astype(float)) <= 5.4 / 100.0:
-                while next_point.previous.point != cur_loc:
-                    next_point = next_point.previous
-                return next_sp.point
+                while next_pointC.previous.point != cur_loc:
+                    next_pointC = next_pointC.previous
+                return next_pointC.point
             openSet.remove(next_point)
             closedSet.add(next_point)
             neighbours = self.adjacent_cells(next_point)
             for n in neighbours :
                 if n not in closedSet:
                     cell = Cell(n, self.target, next_pointC.actual_cost +1 , next_pointC)
-                    if n not in openSet:
+                    if n not in openSet and (next_pointC.actual_cost +1 <10 - self.turns):
                         openSet.add(n)
                         heapq.heappush(openHeap, cell )
         return []
@@ -210,8 +227,8 @@ class Player:
         if required_dist < 20:
             roll_factor  = 1.0
         distance = sympy.Min(200+self.skill, required_dist/roll_factor)
-        angle = sympy.atan2(next_point.y - curr_loc.y, next_point.x - curr_loc.x)
-        angle2  = math.degrees(angle)
-        a =  self.positionSafety( distance, angle2, curr_loc.evalf(), golf_map)
-
+        angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
+        #angle2  = math.degrees(angle)
+        #a =  self.positionSafety( distance, angle2, curr_loc.evalf(), golf_map)
+        self.turns = self.turns +1
         return (required_dist, angle)
