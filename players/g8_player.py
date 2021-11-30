@@ -27,9 +27,9 @@ class Player:
         self.n_distances = 20
         self.n_angles = 50
 
-        self.angle_offset = pi/4 # 45 deg in both directions
+        self.angle_offset = pi
 
-        self.min_conf = 0.60
+        self.min_conf = 0.05 # unused right now
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
@@ -61,21 +61,22 @@ class Player:
         max_distance = min(200+self.skill, required_dist/roll_factor)
         target_angle = atan2(target.y - curr_loc.y, target.x - curr_loc.x)
 
-        shots = []
+        best_shot = (0,0)
+        max_metric = 0
         for distance in np.linspace(max_distance, max_distance / self.n_distances, num=self.n_distances):
             for angle in np.linspace(target_angle-self.angle_offset, target_angle+self.angle_offset, num=self.n_angles):
+                conf = self.est_shot_conf(distance, angle)
+                
                 p = self.np_curr_loc + distance * np.array([np.cos(angle), np.sin(angle)])
                 target_dist = np.linalg.norm(self.np_target - p)
-                shots.append((distance, angle, target_dist))
+                
+                metric = conf / (target_dist+0.001)
 
-        shots.sort(key=lambda s: s[2]) # sort by target_dist
+                if metric > max_metric:
+                    max_metric = metric
+                    best_shot = (distance, angle)
 
-        for distance, angle, target_dist in shots:
-            conf = self.est_shot_conf(distance, angle)
-            if conf >= self.min_conf:
-                return distance, angle
-
-        return 0,0
+        return best_shot
 
     def est_shot_conf(self, distance: float, angle: float, n_tries: int = 100, n_points_on_seg: int = 7):
         start_time = time()
