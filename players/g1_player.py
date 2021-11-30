@@ -7,7 +7,26 @@ import math
 import matplotlib.pyplot as plt
 import constants
 
+import heapq
 
+class Cell:
+    def __init__(self,point, target, actual_cost,previous ):
+        self.point = point
+        self.previous = (0,0)
+        self.actual_cost = 0
+        self.heuristic_cost = np.linalg.norm(np.array(target).astype(float) - np.array(self.point).astype(float))
+        self.actual_cost = actual_cost
+        self.previous = previous
+    
+    def total_cost(self):
+        return self.heuristic_cost + self.actual_cost
+
+    def __lt__(self, other):
+        return self.f_cost() < other.f_cost()
+
+    def __eq__(self, other):
+        return self.point == other.point
+    
 
 
 class Player:
@@ -24,7 +43,8 @@ class Player:
         self.logger = logger
         self.centers =[]
         self.centerset ={}
-        self.centers2 []
+        self.centers2 = []
+        self.target = (0,0)
     
     def segmentize_map(self, golf_map ):
         area_length = 5
@@ -32,14 +52,12 @@ class Player:
         beginy = area_length/2
         endx = constants.vis_width
         endy = constants.vis_height
-        
         node_centers = []
-        node_centers2 =[]
-        
+        node_centers2 =[]   
         for i in range(beginx, endx, area_length):
             tmp = []    
             for j in range(beginy, endy, area_length):
-                representative_point = Point(i,j)
+                representative_point = Point2D(i,j)
                 if (golf_map.encloses(representative_point)):
                     tmp.append(representative_point)
                     node_centers.append(representative_point)
@@ -47,15 +65,8 @@ class Player:
                 else:
                     tmp.append(None)
             nodes_centers2.append(tmp)
-
         self.centers = node_centers
         self.centers2 = nodes_centers2
-        
-
-        
-        
-
-
 
     def sector(self, center, start_angle, end_angle, radius):
         def polar_point(origin_point, angle,  distance):
@@ -114,30 +125,58 @@ class Player:
         shape_map = golf_map.vertices
         x,y = probable_landing_region.exterior.xy
         shape_map_work = Polygon(shape_map)
-
-        
-
         return (area_inside_the_polygon)
 
-    def find_center(self, mylocation):
-        x = mylocation.x
-        y = mylocation.y
-        bucketx = x // 5
-        buckety = y // 5
-        mycenterx = 5*bucketx +2.5
-        mycentery = 5*buckety +2.5
-        center = Point(mycenterx,mycentery)
-        if (self.centers2[bucketx][buckety] != None)
-            return self.centers2[bucketx][buckety]
-        mind =1000000000
-        for points in self.centers:
-            distance = mylocation.distance(points)
-            if (distance < mind):
-                mind = distance
-                center = points
-        return center
 
-    def ( )
+    def is_neighbour(self, curr_loc, target_loc):
+        current_point = curr_loc
+        target_point = tuple(target_loc)
+        current_point = np.array(current_point).astype(float)
+        target_point = np.array(target_point).astype(float)
+        max_dist = 200 + self.skill
+       
+        if (np.linalg.norm(current_point - target_point) < max_dist):
+            return 1
+        else:
+            return 0
+
+    def adjacent_cells(self, point):
+        if self.is_neighbour(point, self.target):
+            return self.goal
+        neighbours = []
+        for center in self.centers:
+            if self.is_neighbour(point, center):
+                neighbours.append( tuple(center))
+        return neighbours
+
+  
+    def aStar( self, current, end):
+        cur_loc = tuple(current)
+        current = Cell(cur_loc, self.target, 0.0 , cur_loc )
+        openSet = set()
+        openHeap = []
+        closedSet = set()
+        openSet.add(cur_loc)
+        openHeap.append(current)
+        while openSet:
+            next_point = heapq.heappop(openHeap).point
+            #reached the goal
+            if np.linalg.norm(np.array(self.target).astype(float) - np.array(next_point).astype(float)) <= 5.4 / 100.0:
+                while next_point.previous.point != cur_loc:
+                    next_point = next_point.previous
+                return next_sp.point
+            openSet.remove(next_point)
+            closedSet.add(next_point)
+            neighbours = self.adjacent_cells(next_point)
+            for n in neighbours :
+                if n not in closedSet:
+                    cell = Cell(n, self.target, next_point.actual_cost +1 , next_point)
+                    if n not in openSet:
+                        openSet.add(n)
+                        heapq.heappush(openHeap, cell )
+        return []
+
+
 
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
@@ -157,19 +196,20 @@ class Player:
         """
         if (prev_loc == None):
             self.segmentize_map
+            self.target = tuple(target)
+            print(self.centers)
 
-        center = self.find_center(curr_loc.evalf())
-        next_point = self.path_finder(center, target )
+        next_point = self.aStar(curr_loc, target )
 
 
-        print(curr_loc)
-        required_dist = curr_loc.distance(target)
+        print(next_point)
+        required_dist = curr_loc.distance(next_point)
         roll_factor = 1.1
         if required_dist < 20:
             roll_factor  = 1.0
         distance = sympy.Min(200+self.skill, required_dist/roll_factor)
-        angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+        angle = sympy.atan2(next_point.y - curr_loc.y, next_point.x - curr_loc.x)
         angle2  = math.degrees(angle)
         a =  self.positionSafety( distance, angle2, curr_loc.evalf(), golf_map)
 
-        return (distance, angle)
+        return (required_dist, angle)
