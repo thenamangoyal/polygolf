@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import sympy
 import logging
@@ -48,33 +50,33 @@ class Player:
         max_dist_traveled = 200 + self.skill
         distance = sympy.Min(max_dist_traveled, required_dist / roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
-        farthest_point = sympy.Point2D(curr_loc.x + distance * sympy.cos(angle),
-                                       curr_loc.y + distance * sympy.sin(angle))
-        cone_angle = sympy.atan2(curr_loc.y - farthest_point.y, curr_loc.x - farthest_point.x)
 
-        r = 0
-        while r < distance:
-            #theta = 0
-            #while theta < sympy.pi / 4:
-                #if theta == 0:
-            landing_point = sympy.Point2D(farthest_point.x + r * sympy.cos(cone_angle),
-                                                  farthest_point.y + r * sympy.sin(cone_angle))
-            angle, distance = self.calculate_angle_and_distance(curr_loc, landing_point)
-            if self.is_roll_in_polygon(curr_loc, distance, angle, map):
-                return distance, angle
-                #else:
-                    #landing_point = sympy.Point2D(farthest_point.x + r * sympy.cos(cone_angle + theta),
-                    #                              farthest_point.y + r * sympy.sin(cone_angle + theta))
-                    #angle, distance = self.calculate_angle_and_distance(curr_loc, landing_point)
-                    #if self.is_roll_in_polygon(curr_loc, distance, angle, map):
-                    #    return distance, angle
-                    #landing_point = sympy.Point2D(farthest_point.x + r * sympy.cos(cone_angle - theta),
-                    #                                farthest_point.y + r * sympy.sin(cone_angle - theta))
-                    #angle, distance = self.calculate_angle_and_distance(curr_loc, landing_point)
-                    #if self.is_roll_in_polygon(curr_loc, distance, angle, map):
-                    #    return distance, angle
-                #theta += 0.1  # sympy.pi / 24
-            r += 1
+        r = float(distance)
+        while r >= 0:
+            theta = 0
+            while theta < sympy.pi / 4:
+                if theta == 0:
+                    landing_point = sympy.Point2D(curr_loc.x + r * sympy.cos(angle),
+                                                  curr_loc.y + r * sympy.sin(angle))
+                    #angle_t, distance_t = self.calculate_angle_and_distance(curr_loc, landing_point)
+                    if self.is_roll_in_polygon(curr_loc, r, angle, map):
+                        return r, angle
+                else:
+                    landing_point = sympy.Point2D(curr_loc.x + r * sympy.cos(angle + theta),
+                                                  curr_loc.y + r * sympy.sin(angle + theta))
+                    #angle_t, distance_t = self.calculate_angle_and_distance(curr_loc, landing_point)
+                    if self.is_roll_in_polygon(curr_loc, r, angle + theta, map):
+                        return distance, angle + theta
+                    landing_point = sympy.Point2D(curr_loc.x + r * sympy.cos(angle - theta),
+                                                    curr_loc.y + r * sympy.sin(angle - theta))
+                    #angle_t, distance_t = self.calculate_angle_and_distance(curr_loc, landing_point)
+                    if self.is_roll_in_polygon(curr_loc, r, angle - theta, map):
+                        return r, angle - theta
+                theta += float(sympy.pi / 6)
+                theta += float(random.uniform(-.1, 0.1))
+                print("theta loop")
+            print("distance loop")
+            r -= 20
         return 0,0
 
     def get_targets(self, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D):
