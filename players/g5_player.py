@@ -28,7 +28,7 @@ class Player:
     def is_roll_in_polygon(self, point_a, distance, angle, map):
         x = float(point_a.x.evalf())
         y = float(point_a.y.evalf())
-        distance = float(distance.evalf())
+        # distance = float(distance.evalf())
         angle = float(angle.evalf())
         curr_point = Point(x + distance * np.cos(angle),
                                    y + distance * np.sin(angle))
@@ -40,7 +40,7 @@ class Player:
         start_time = time()
         if_encloses = self.shapely_polygon.contains(segment_land)
         end_time = time()
-        print("time: ", end_time - start_time)
+        # print("time: ", end_time - start_time)
         return if_encloses
 
     def search_landing_points(self, landing_points, curr_loc, map):
@@ -63,7 +63,7 @@ class Player:
         r = float(distance)
         while r >= 0:
             theta = 0
-            while theta < sympy.pi / 4:
+            while theta < sympy.pi / 2:
                 if theta == 0:
                     if self.is_roll_in_polygon(curr_loc, r, angle, map):
                         return r, angle
@@ -72,11 +72,12 @@ class Player:
                         return distance, angle + theta
                     if self.is_roll_in_polygon(curr_loc, r, angle - theta, map):
                         return r, angle - theta
-                theta += float(sympy.pi / 6)
-                theta += float(random.uniform(-.1, 0.1))
+                theta += float(sympy.pi / 120)
+                # theta += float(random.uniform(-.1, 0.1))
                 #print("theta loop")
             #print("distance loop")
             r -= 20
+            # print("distance", r)
         return 0,0
 
     def get_targets(self, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D):
