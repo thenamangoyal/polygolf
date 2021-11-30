@@ -281,15 +281,22 @@ class Player:
         if self.need_initialization:
             self.initialize(golf_map, target)
 
+        curr_loc = to_numeric_point(curr_loc)
+        target_angle = math.atan2(self.target_f.y - curr_loc.y, self.target_f.x - curr_loc.x)
+
         candidates = [
             (distance, angle)
             for distance in list(range(1, 20)) + list(range(20, self.max_dist, 5)) + [self.max_dist]
-            for angle in [2 * math.pi * (i / 36) for i in range(36)] + [
-                                float(sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x))]
+            for angle in [2 * math.pi * (i / 36) for i in range(36)] + [target_angle]
         ]
         random.shuffle(candidates)
 
-        choice, score = self.simulate(candidates, to_numeric_point(curr_loc))
+        choice, score = self.simulate(candidates, curr_loc)
+
+        # naive method for special case
+        distance, _ = choice
+        if distance < constants.min_putter_dist:
+            return min(distance * 1.1, constants.min_putter_dist), target_angle
 
         self.logger.debug(f"last: {to_numeric_point(prev_loc) if prev_loc else prev_loc}, target: {target}")
         self.logger.debug(f"choice: {choice}, score: {score}")
