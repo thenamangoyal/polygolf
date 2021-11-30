@@ -70,20 +70,13 @@ class Player:
             # TODO: cost about 6-8 seconds, too slow
             intersect_points_origin = circle.intersection(golf_map)
 
-            # delete useless intersection points
-            intersect_points = []
-            for i in range(len(intersect_points_origin)):
-                intersect_distance = intersect_points_origin[i].distance(target)
-                if intersect_distance <= required_dist:
-                    intersect_points.append(intersect_points_origin[i])
-
-            intersect_points_num = len(intersect_points)
+            intersect_points_num = len(intersect_points_origin)
             middle_points = []
 
             for i in range(intersect_points_num):
                 for j in range(i + 1, intersect_points_num):
-                    middle_point = sympy.Point2D(float(intersect_points[i].x + intersect_points[j].x) / 2,
-                                                 float(intersect_points[i].y + intersect_points[j].y) / 2)
+                    middle_point = sympy.Point2D(float(intersect_points_origin[i].x + intersect_points_origin[j].x) / 2,
+                                                 float(intersect_points_origin[i].y + intersect_points_origin[j].y) / 2)
                     # find points that in the golf map polygon
                     if golf_map.encloses(middle_point):
                         middle_points.append(middle_point)
@@ -128,6 +121,7 @@ class Player:
             self.logger.info("select distance to middle point to go")
             desire_angle = sympy.atan2(middle_points[midd_index].y - curr_loc.y,
                                        middle_points[midd_index].x - curr_loc.x)
+
             return (desire_distance, desire_angle)
 
         self.logger.info("select middle point to go")
@@ -143,6 +137,7 @@ class Player:
         curr_to_mid = closest_middle_point.distance(curr_loc)
         desire_distance = sympy.Min(constants.max_dist + self.skill, curr_to_mid / roll_factor)
         desire_angle = sympy.atan2(closest_middle_point.y - curr_loc.y, closest_middle_point.x - curr_loc.x)
+
         return (desire_distance, desire_angle)
 
     def simulate_once(self, distance, angle, curr_loc, golf_map):
