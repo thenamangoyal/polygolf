@@ -4,6 +4,8 @@ import numpy as np
 import sympy
 import logging
 from typing import Tuple
+from shapely.geometry import Polygon, Point, LineString
+from time import time
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -24,19 +26,26 @@ class Player:
         return angle, distance
 
     def is_roll_in_polygon(self, point_a, distance, angle, map):
-        curr_point = sympy.Point2D(point_a.x + distance * sympy.cos(angle),
-                                   point_a.y + distance * sympy.sin(angle))
-        final_point = sympy.Point2D(
-            point_a.x + (1.1) * distance * sympy.cos(angle),
-            point_a.y + (1.1) * distance * sympy.sin(angle))
+        x = float(point_a.x.evalf())
+        y = float(point_a.y.evalf())
+        distance = float(distance.evalf())
+        angle = float(angle.evalf())
+        curr_point = Point(x + distance * np.cos(angle),
+                                   y + distance * np.sin(angle))
+        final_point = Point(
+            x + (1.1) * distance * np.cos(angle),
+            y + (1.1) * distance * np.sin(angle))
 
-        segment_land = sympy.geometry.Segment2D(curr_point, final_point)
-        return map.encloses(segment_land)
+        segment_land = LineString([curr_point, final_point])
+        start_time = time()
+        if_encloses = self.shapely_polygon.contains(segment_land)
+        end_time = time()
+        print("time: ", end_time - start_time)
+        return if_encloses
 
     def search_landing_points(self, landing_points, curr_loc, map):
         for landing_point in landing_points:
             angle, distance = self.calculate_angle_and_distance(curr_loc, landing_point)
-            #print(distance, angle)
             if self.is_roll_in_polygon(curr_loc, distance, angle, map):
                 return distance, angle
             
@@ -119,8 +128,9 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        #point_list = self.get_targets(target, curr_loc)
-        #print(point_list)
-        #return self.search_landing_points(point_list, curr_loc, golf_map)
+
+        if score == 1:
+            self.shapely_polygon = Polygon([(p.x, p.y) for p in golf_map.vertices])
+
         return self.search_targets(target, curr_loc, golf_map)
 
