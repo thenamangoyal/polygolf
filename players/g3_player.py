@@ -6,14 +6,16 @@ from typing import Tuple, List, Dict, Optional
 
 import numpy as np
 import sympy
+from numba import jit
 from scipy.spatial import KDTree
 
 import constants
 
 SAMPLE_LIMIT = 1000  # approx. count of sampled points
 
-RANDOM_COUNT = 50  # repeat times of sampling normal distributions
-EVALUATE_SAMPLE = 20  # checking whether rolling part inside polygon with fixed interval
+RANDOM_COUNT = 60  # repeat times of sampling normal distributions
+PRUNING_FACTOR = 0.2
+EVALUATE_SAMPLE = 10  # checking whether rolling part inside polygon with fixed interval
 
 EPS = 1e-6
 
@@ -38,9 +40,6 @@ class PointF:
     def __sub__(self, other):
         assert type(other) == PointF
         return PointF(self.x - other.x, self.y - other.y)
-
-
-PolygonF = List[PointF]
 
 
 def sgn(x: float) -> int:
@@ -89,29 +88,31 @@ def dist_to_seg(p: PointF, s: PointF, t: PointF) -> float:
     return dist_to_line(p, s, t)
 
 
-def point_inside_polygon(poly: PolygonF, p: PointF) -> bool:
+@jit(nopython=True)
+def point_inside_polygon(poly: np.array, px: float, py: float) -> bool:
     # http://paulbourke.net/geometry/polygonmesh/#insidepoly
+    # https://stackoverflow.com/questions/36399381/whats-the-fastest-way-of-checking-if-a-point-is-inside-a-polygon-in-python
     n = len(poly)
     inside = False
-    p1 = poly[0]
+    p1x, p1y = poly[0]
     for i in range(1, n + 1):
-        p2 = poly[i % n]
-        if min(p1.y, p2.y) < p.y <= max(p1.y, p2.y) and p.x <= max(p1.x, p2.x) and p1.x != p2.y:
-            xints = (p.y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y) + p1.x
-            if p1.x == p2.x or p.x <= xints:
+        p2x, p2y = poly[i % n]
+        if min(p1y, p2y) < py <= max(p1y, p2y) and px <= max(p1x, p2x) and p1x != p2y:
+            xints = (py - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+            if p1x == p2x or px <= xints:
                 inside = not inside
-        p1 = p2
+        p1x, p1y = p2x, p2y
     return inside
 
 
-def sample_points_inside_polygon(poly: sympy.Polygon, poly_f: PolygonF) -> Tuple[float, List[PointF]]:
+def sample_points_inside_polygon(poly: sympy.Polygon, poly_f: np.array) -> Tuple[float, List[PointF]]:
     def sample_by_dist(d: float) -> List[PointF]:
         l = list()
         xmin, ymin, xmax, ymax = poly.bounds
         for x in np.arange(float(xmin), float(xmax), d):
             for y in np.arange(float(ymin), float(ymax), d):
                 p = PointF(x, y)
-                if point_inside_polygon(poly_f, p):
+                if point_inside_polygon(poly_f, p.x, p.y):
                     l.append(p)
         return l
 
@@ -145,7 +146,8 @@ class Player:
         self.scores: Dict[PointF, float] = dict()
 
         self.kdt: KDTree = None
-        self.golf_map_f = self.target_f = None
+        self.target_f = None
+        self.golf_map_f = None
 
     def calc_scores(self, target: PointF, max_d: float):
         # naive BFS
@@ -175,11 +177,11 @@ class Player:
         golf_map_f = list()
         for v in golf_map.vertices:
             golf_map_f.append(to_numeric_point(v))
-        self.golf_map_f = golf_map_f
         self.target_f = target_f = to_numeric_point(target)
+        self.golf_map_f = np.asarray([(p.x, p.y) for p in golf_map_f], dtype=np.float64)
 
         # sample points
-        self.sample_dist, self.sampled_points = sample_points_inside_polygon(golf_map, golf_map_f)
+        self.sample_dist, self.sampled_points = sample_points_inside_polygon(golf_map, self.golf_map_f)
         self.logger.debug(f"# of sampled points: {len(self.sampled_points)}")
 
         # calculate scores
@@ -207,7 +209,7 @@ class Player:
         # boundary check
         for i in range(EVALUATE_SAMPLE + 1):
             position = self.pos(current_position, distance * (i / EVALUATE_SAMPLE), angle)
-            if not point_inside_polygon(self.golf_map_f, position):
+            if not point_inside_polygon(self.golf_map_f, position.x, position.y):
                 return None
 
         end = self.pos(current_position, distance, angle)
@@ -240,7 +242,7 @@ class Player:
             scores = list()
             for counter in range(RANDOM_COUNT):
                 # pruning
-                if counter == RANDOM_COUNT // 5:
+                if counter == int(RANDOM_COUNT * PRUNING_FACTOR):
                     if get_score(scores) > min_score * 1.5:
                         return None
 
@@ -286,8 +288,8 @@ class Player:
 
         candidates = [
             (distance, angle)
-            for distance in list(range(1, 20)) + list(range(20, self.max_dist, 5)) + [self.max_dist]
-            for angle in [2 * math.pi * (i / 36) for i in range(36)] + [target_angle]
+            for distance in list(range(1, 20)) + list(range(20, self.max_dist, 4)) + [self.max_dist]
+            for angle in [2 * math.pi * (i / 72) for i in range(72)] + [target_angle]
         ]
         random.shuffle(candidates)
 
