@@ -65,26 +65,17 @@ class Player:
             theta = 0
             while theta < sympy.pi / 4:
                 if theta == 0:
-                    landing_point = sympy.Point2D(curr_loc.x + r * sympy.cos(angle),
-                                                  curr_loc.y + r * sympy.sin(angle))
-                    #angle_t, distance_t = self.calculate_angle_and_distance(curr_loc, landing_point)
                     if self.is_roll_in_polygon(curr_loc, r, angle, map):
                         return r, angle
                 else:
-                    landing_point = sympy.Point2D(curr_loc.x + r * sympy.cos(angle + theta),
-                                                  curr_loc.y + r * sympy.sin(angle + theta))
-                    #angle_t, distance_t = self.calculate_angle_and_distance(curr_loc, landing_point)
                     if self.is_roll_in_polygon(curr_loc, r, angle + theta, map):
                         return distance, angle + theta
-                    landing_point = sympy.Point2D(curr_loc.x + r * sympy.cos(angle - theta),
-                                                    curr_loc.y + r * sympy.sin(angle - theta))
-                    #angle_t, distance_t = self.calculate_angle_and_distance(curr_loc, landing_point)
                     if self.is_roll_in_polygon(curr_loc, r, angle - theta, map):
                         return r, angle - theta
                 theta += float(sympy.pi / 6)
                 theta += float(random.uniform(-.1, 0.1))
-                print("theta loop")
-            print("distance loop")
+                #print("theta loop")
+            #print("distance loop")
             r -= 20
         return 0,0
 
