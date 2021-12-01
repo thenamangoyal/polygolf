@@ -1,18 +1,20 @@
 import numpy as np
+import functools
 import sympy
 import logging
 import heapq
+from scipy import stats as scipy_stats
+
 from typing import Tuple, Iterator, List
 from sympy.geometry import Polygon, Point2D
-from scipy.stats import norm
 from matplotlib.path import Path
 
 
 def splash_zone(distance: float, angle: float, conf: float, skill: int, current_point: Tuple[float, float]) -> List[Tuple[float, float]]:
     curr_x, curr_y = current_point
     conf_points = np.linspace(1 - conf, conf, 100)
-    d_dist = norm(distance, distance/skill)
-    a_dist = norm(angle, 1/(2*skill))
+    d_dist = scipy_stats.norm(distance, distance/skill)
+    a_dist = scipy_stats.norm(angle, 1/(2*skill))
     distances = np.vectorize(d_dist.ppf)(conf_points)
     angles = np.vectorize(a_dist.ppf)(conf_points)
     xs = []
@@ -50,8 +52,8 @@ def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
         x_max = max(x, x_max)
         y_min = min(y, y_min)
         y_max = max(y, y_max)
-    x_step = 10.0  # meter
-    y_step = 10.0  # meter
+    x_step = 1.0  # meter
+    y_step = 1.0  # meter
 
     x_current = x_min + x_step
     y_current = y_min + y_step
@@ -129,6 +131,14 @@ class Player:
         self.goal = None
         self.prev_rv = None
 
+        # Cached data
+        max_dist = 200 + self.skill
+        self.max_ddist = scipy_stats.norm(max_dist, max_dist / self.skill)
+
+    @functools.cache
+    def _max_ddist_ppf(self, conf: float):
+        return self.max_ddist.ppf(1.0 - conf)
+
     def reachable_point(self, current_point: Tuple[float, float], target_point: Tuple[float, float], conf: float) -> bool:
         """Determine whether the point is reachable with confidence [conf] based on our player's skill"""
         if type(current_point) == Point2D:
@@ -139,9 +149,7 @@ class Player:
         current_point = np.array(current_point).astype(float)
         target_point = np.array(target_point).astype(float)
 
-        max_dist = 200 + self.skill
-        d_dist = norm(max_dist, max_dist / self.skill)
-        return np.linalg.norm(current_point - target_point) <= d_dist.ppf(1.0 - conf)
+        return np.linalg.norm(current_point - target_point) <= self._max_ddist_ppf(conf)
     
     def splash_zone_within_polygon(self, current_point: Tuple[float, float], target_point: Tuple[float, float], conf: float) -> bool:
         if type(current_point) == Point2D:
@@ -181,6 +189,8 @@ class Player:
         while len(heap) > 0:
             next_sp = heapq.heappop(heap)
             next_p = next_sp.point
+            del best_cost[next_p]
+
             if next_p in visited:
                 continue
             if next_sp.actual_cost > 0 and not self.splash_zone_within_polygon(next_sp.previous.point, next_p, conf):
@@ -238,8 +248,9 @@ class Player:
 
         target_point = None
         confidence = 0.95
+        cl = float(curr_loc.x), float(curr_loc.y)
         while target_point is None:
-            target_point = self.next_target(curr_loc, target, confidence)
+            target_point = self.next_target(cl, target, confidence)
             confidence -= 0.05
 
         # fixup target
@@ -249,7 +260,8 @@ class Player:
             v = np.array(target_point) - current_point
             u = v / dist
             if dist * 1.10 > 20.0:
-                target_point = current_point + u * dist * (1 / 1.10)
+                pass
+                # target_point = current_point + u * dist * (1 / 1.10)
             else:
                 target_point = current_point + u * dist * 1.10
 
