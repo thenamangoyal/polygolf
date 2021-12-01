@@ -13,8 +13,6 @@ import heapq
 class Cell:
     def __init__(self,point, target, actual_cost,previous ):
         self.point = point
-        self.previous = (0,0)
-        self.actual_cost = 0
         self.heuristic_cost = np.linalg.norm(np.array(target).astype(float) - np.array(self.point).astype(float))
         self.actual_cost = actual_cost
         self.previous = previous
@@ -47,6 +45,7 @@ class Player:
         self.centers2 = []
         self.target = (0,0)
         self.turns = 0
+        self.map = None
     def point_inside_polygon(self,poly, p) -> bool:
     # http://paulbourke.net/geometry/polygonmesh/#insidepoly
         n = len(poly)
@@ -62,7 +61,7 @@ class Player:
         return inside
         
     def segmentize_map(self, golf_map ):
-        area_length = 10
+        area_length = 5
         beginx = area_length/2
         beginy = area_length/2
         endx = constants.vis_width
@@ -73,6 +72,7 @@ class Player:
             tmp = []    
             for j in range(int(beginy), int(endy), area_length):
                 representative_point = Point2D(i,j)
+                #maybe if its not in the polygon check points around in order to use those
                 if self.point_inside_polygon(golf_map.vertices,sympy.geometry.Point2D(i , j)):
                     tmp.append(representative_point)
                     node_centers.append(representative_point)
@@ -106,7 +106,32 @@ class Player:
         segment_vertices.append(polar_point(center, start_angle+sector_width,radius))
         #print(segment_vertices)
         return Polygon(segment_vertices)
+    def is_landing_pt_safe(self, iteration: int, golf_map: sympy.Polygon, curr_loc: sympy.geometry.Point2D,
+                       distance: float,
+                       angle: float) -> bool:
 
+        valid_cnt = 0
+        for _ in range(iteration):
+            # From golf_game.py
+            actual_distance = self.rng.normal(distance, distance / self.skill)
+            actual_angle = self.rng.normal(angle, 1 / (2 * self.skill))
+
+            if constants.max_dist + self.skill >= distance >= constants.min_putter_dist:
+                landing_point = Point2D(curr_loc[0] + actual_distance * sympy.cos(actual_angle),
+                                    curr_loc[1] + actual_distance * sympy.sin(actual_angle))
+                final_point = Point2D(
+                    curr_loc[0] + (1. + constants.extra_roll) * actual_distance * sympy.cos(actual_angle),
+                    curr_loc[1] + (1. + constants.extra_roll) * actual_distance * sympy.sin(actual_angle))
+            else:
+                landing_point = curr_loc
+                final_point = sympy.Point2D(curr_loc[0] + actual_distance * sympy.cos(actual_angle),
+                                        curr_loc[1] + actual_distance * sympy.sin(actual_angle))
+
+            segment_land = sympy.geometry.Segment2D(landing_point, final_point)
+            if golf_map.encloses(segment_land):
+                valid_cnt += 1
+
+        return valid_cnt == iteration
     def positionSafety(self, d, angle, start_point, golf_map):
         #CIRCLE of radiues = 2 standand deviations
         angle_2std = math.degrees(2*(1/self.skill))
@@ -149,9 +174,15 @@ class Player:
         current_point = np.array(current_point).astype(float)
         target_point = np.array(target_point).astype(float)
         max_dist = 200 + self.skill
-       
+        required_dist = np.linalg.norm(current_point - target_point)
+        angle = sympy.atan2(target_point[1] - current_point[1], target_point[0] - current_point[0])
+        #is reachable
         if (np.linalg.norm(current_point - target_point) < max_dist):
+            #is safe to land
+            #if (self.is_landing_pt_safe(10,self.map, curr_loc, required_dist, angle )):
             return 1
+            #else:
+                #return 0
         else:
             return 0
 
@@ -217,16 +248,13 @@ class Player:
             
             self.segmentize_map(golf_map)
             self.target = tuple(target)
+            self.map = golf_map
 
         next_point = self.aStar(curr_loc, target )
 
 
         print(next_point)
         required_dist = curr_loc.distance(next_point)
-        roll_factor = 1.1
-        if required_dist < 20:
-            roll_factor  = 1.0
-        distance = sympy.Min(200+self.skill, required_dist/roll_factor)
         angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
         #angle2  = math.degrees(angle)
         #a =  self.positionSafety( distance, angle2, curr_loc.evalf(), golf_map)
