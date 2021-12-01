@@ -6,16 +6,17 @@ from typing import Tuple, List, Dict, Optional
 
 import numpy as np
 import sympy
+from numba import jit
 from scipy.spatial import KDTree
 
 import constants
 
 SAMPLE_LIMIT = 1000  # approx. count of sampled points
 
-RANDOM_COUNT = 50  # repeat times of sampling normal distributions
-EVALUATE_SAMPLE = 20  # checking whether rolling part inside polygon with fixed interval
+RANDOM_COUNT = 60  # repeat times of sampling normal distributions
+PRUNING_FACTOR = 0.2
 
-EPS = 1e-6
+EPS = 1e-12
 
 
 class PointF:
@@ -39,8 +40,9 @@ class PointF:
         assert type(other) == PointF
         return PointF(self.x - other.x, self.y - other.y)
 
-
-PolygonF = List[PointF]
+    @property
+    def to_numpy(self):
+        return np.array([self.x, self.y])
 
 
 def sgn(x: float) -> int:
@@ -89,29 +91,53 @@ def dist_to_seg(p: PointF, s: PointF, t: PointF) -> float:
     return dist_to_line(p, s, t)
 
 
-def point_inside_polygon(poly: PolygonF, p: PointF) -> bool:
+@jit(nopython=True)
+def point_inside_polygon(poly: np.array, px: float, py: float) -> bool:
     # http://paulbourke.net/geometry/polygonmesh/#insidepoly
+    # https://stackoverflow.com/questions/36399381/whats-the-fastest-way-of-checking-if-a-point-is-inside-a-polygon-in-python
     n = len(poly)
     inside = False
-    p1 = poly[0]
+    p1x, p1y = poly[0]
     for i in range(1, n + 1):
-        p2 = poly[i % n]
-        if min(p1.y, p2.y) < p.y <= max(p1.y, p2.y) and p.x <= max(p1.x, p2.x) and p1.x != p2.y:
-            xints = (p.y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y) + p1.x
-            if p1.x == p2.x or p.x <= xints:
+        p2x, p2y = poly[i % n]
+        if min(p1y, p2y) < py <= max(p1y, p2y) and px <= max(p1x, p2x) and p1x != p2y:
+            xints = (py - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+            if p1x == p2x or px <= xints:
                 inside = not inside
-        p1 = p2
+        p1x, p1y = p2x, p2y
     return inside
 
 
-def sample_points_inside_polygon(poly: sympy.Polygon, poly_f: PolygonF) -> Tuple[float, List[PointF]]:
+@jit(nopython=True)
+def sgn_cross(o: np.array, b: np.array, c: np.array) -> int:
+    t = (b[0] - o[0]) * (c[1] - o[1]) - (b[1] - o[1]) * (c[0] - o[0])
+    if np.fabs(t) < EPS:
+        return 0
+    return 1 if t > 0 else -1
+
+
+@jit(nopython=True)
+def segment_polygon_intersection(poly: np.array, b1: np.array, b2: np.array) -> bool:
+    n = len(poly)
+    for i in range(n):
+        a1, a2 = poly[i], poly[(i + 1) % n]
+        d1 = sgn_cross(a1, a2, b1)
+        d2 = sgn_cross(a1, a2, b2)
+        d3 = sgn_cross(b1, b2, a1)
+        d4 = sgn_cross(b1, b2, a2)
+        if d1 ^ d2 == -2 and d3 ^ d4 == -2:
+            return True
+    return False
+
+
+def sample_points_inside_polygon(poly: sympy.Polygon, poly_f: np.array) -> Tuple[float, List[PointF]]:
     def sample_by_dist(d: float) -> List[PointF]:
         l = list()
         xmin, ymin, xmax, ymax = poly.bounds
         for x in np.arange(float(xmin), float(xmax), d):
             for y in np.arange(float(ymin), float(ymax), d):
                 p = PointF(x, y)
-                if point_inside_polygon(poly_f, p):
+                if point_inside_polygon(poly_f, p.x, p.y):
                     l.append(p)
         return l
 
@@ -145,7 +171,8 @@ class Player:
         self.scores: Dict[PointF, float] = dict()
 
         self.kdt: KDTree = None
-        self.golf_map_f = self.target_f = None
+        self.target_f = None
+        self.golf_map_f = None
 
     def calc_scores(self, target: PointF, max_d: float):
         # naive BFS
@@ -175,11 +202,11 @@ class Player:
         golf_map_f = list()
         for v in golf_map.vertices:
             golf_map_f.append(to_numeric_point(v))
-        self.golf_map_f = golf_map_f
         self.target_f = target_f = to_numeric_point(target)
+        self.golf_map_f = np.asarray([(p.x, p.y) for p in golf_map_f], dtype=np.float64)
 
         # sample points
-        self.sample_dist, self.sampled_points = sample_points_inside_polygon(golf_map, golf_map_f)
+        self.sample_dist, self.sampled_points = sample_points_inside_polygon(golf_map, self.golf_map_f)
         self.logger.debug(f"# of sampled points: {len(self.sampled_points)}")
 
         # calculate scores
@@ -204,13 +231,13 @@ class Player:
                       current_position.y + distance * math.sin(angle))
 
     def evaluate_putter(self, current_position: PointF, distance: float, angle: float) -> Optional[float]:
-        # boundary check
-        for i in range(EVALUATE_SAMPLE + 1):
-            position = self.pos(current_position, distance * (i / EVALUATE_SAMPLE), angle)
-            if not point_inside_polygon(self.golf_map_f, position):
-                return None
-
         end = self.pos(current_position, distance, angle)
+
+        # boundary check
+        if not point_inside_polygon(self.golf_map_f, end.x, end.y):
+            return None
+        if segment_polygon_intersection(self.golf_map_f, current_position.to_numpy, end.to_numpy):
+            return None
 
         # goal
         if dist_to_seg(self.target_f, current_position, end) < constants.target_radius:
@@ -233,20 +260,20 @@ class Player:
                 return float('inf')
             avg = sum(valid_scores) / len(valid_scores)
             miss_prob = (n - len(valid_scores)) / n
-            return avg / (1 - miss_prob)
+            return avg + miss_prob / (1 - miss_prob)
 
         def simulate_one(candidate: Tuple[float, float]) -> Optional[float]:
             distance, angle = candidate
             scores = list()
             for counter in range(RANDOM_COUNT):
                 # pruning
-                if counter == RANDOM_COUNT // 5:
+                if counter == int(RANDOM_COUNT * PRUNING_FACTOR):
                     if get_score(scores) > min_score * 1.5:
                         return None
 
                 real_distance = np.random.normal(distance, distance / self.skill)
                 real_angle = angle + np.random.normal(0, 1 / (2 * self.skill))
-                if distance < 20:  # putter
+                if distance < constants.min_putter_dist:  # putter
                     scores.append(self.evaluate_putter(current_position, real_distance, real_angle))
                 else:
                     scores.append(self.evaluate(current_position, real_distance, real_angle))
@@ -281,15 +308,22 @@ class Player:
         if self.need_initialization:
             self.initialize(golf_map, target)
 
+        curr_loc = to_numeric_point(curr_loc)
+        target_angle = math.atan2(self.target_f.y - curr_loc.y, self.target_f.x - curr_loc.x)
+
         candidates = [
             (distance, angle)
-            for distance in list(range(1, 20)) + list(range(20, self.max_dist, 5)) + [self.max_dist]
-            for angle in [2 * math.pi * (i / 36) for i in range(36)] + [
-                                float(sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x))]
+            for distance in list(range(1, 20)) + list(range(20, self.max_dist, 4)) + [self.max_dist]
+            for angle in [2 * math.pi * (i / 72) for i in range(72)] + [target_angle]
         ]
         random.shuffle(candidates)
 
-        choice, score = self.simulate(candidates, to_numeric_point(curr_loc))
+        choice, score = self.simulate(candidates, curr_loc)
+
+        # naive method for special case
+        distance, _ = choice
+        if distance < constants.min_putter_dist:
+            return min(dist(self.target_f, curr_loc) / (1 - 1 / self.skill * 3), constants.min_putter_dist), target_angle
 
         self.logger.debug(f"last: {to_numeric_point(prev_loc) if prev_loc else prev_loc}, target: {target}")
         self.logger.debug(f"choice: {choice}, score: {score}")
