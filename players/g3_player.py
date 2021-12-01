@@ -298,7 +298,7 @@ class Player:
         # naive method for special case
         distance, _ = choice
         if distance < constants.min_putter_dist:
-            return min(distance * 1.1, constants.min_putter_dist), target_angle
+            return min(dist(self.target_f, curr_loc) / (1 - 1 / self.skill * 3), constants.min_putter_dist), target_angle
 
         self.logger.debug(f"last: {to_numeric_point(prev_loc) if prev_loc else prev_loc}, target: {target}")
         self.logger.debug(f"choice: {choice}, score: {score}")
