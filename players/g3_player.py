@@ -15,9 +15,8 @@ SAMPLE_LIMIT = 1000  # approx. count of sampled points
 
 RANDOM_COUNT = 60  # repeat times of sampling normal distributions
 PRUNING_FACTOR = 0.2
-EVALUATE_SAMPLE = 10  # checking whether rolling part inside polygon with fixed interval
 
-EPS = 1e-6
+EPS = 1e-12
 
 
 class PointF:
@@ -40,6 +39,10 @@ class PointF:
     def __sub__(self, other):
         assert type(other) == PointF
         return PointF(self.x - other.x, self.y - other.y)
+
+    @property
+    def to_numpy(self):
+        return np.array([self.x, self.y])
 
 
 def sgn(x: float) -> int:
@@ -103,6 +106,28 @@ def point_inside_polygon(poly: np.array, px: float, py: float) -> bool:
                 inside = not inside
         p1x, p1y = p2x, p2y
     return inside
+
+
+@jit(nopython=True)
+def sgn_cross(o: np.array, b: np.array, c: np.array) -> int:
+    t = (b[0] - o[0]) * (c[1] - o[1]) - (b[1] - o[1]) * (c[0] - o[0])
+    if np.fabs(t) < EPS:
+        return 0
+    return 1 if t > 0 else -1
+
+
+@jit(nopython=True)
+def segment_polygon_intersection(poly: np.array, b1: np.array, b2: np.array) -> bool:
+    n = len(poly)
+    for i in range(n):
+        a1, a2 = poly[i], poly[(i + 1) % n]
+        d1 = sgn_cross(a1, a2, b1)
+        d2 = sgn_cross(a1, a2, b2)
+        d3 = sgn_cross(b1, b2, a1)
+        d4 = sgn_cross(b1, b2, a2)
+        if d1 ^ d2 == -2 and d3 ^ d4 == -2:
+            return True
+    return False
 
 
 def sample_points_inside_polygon(poly: sympy.Polygon, poly_f: np.array) -> Tuple[float, List[PointF]]:
@@ -206,13 +231,13 @@ class Player:
                       current_position.y + distance * math.sin(angle))
 
     def evaluate_putter(self, current_position: PointF, distance: float, angle: float) -> Optional[float]:
-        # boundary check
-        for i in range(EVALUATE_SAMPLE + 1):
-            position = self.pos(current_position, distance * (i / EVALUATE_SAMPLE), angle)
-            if not point_inside_polygon(self.golf_map_f, position.x, position.y):
-                return None
-
         end = self.pos(current_position, distance, angle)
+
+        # boundary check
+        if not point_inside_polygon(self.golf_map_f, end.x, end.y):
+            return None
+        if segment_polygon_intersection(self.golf_map_f, current_position.to_numpy, end.to_numpy):
+            return None
 
         # goal
         if dist_to_seg(self.target_f, current_position, end) < constants.target_radius:
