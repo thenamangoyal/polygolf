@@ -106,8 +106,8 @@ class Player:
         self.graph[((target.x, target.y),)] = []
         self.all_nodes_center[((target.x, target.y),)] = self._get_node_center(((target.x, target.y),))
 
-        if log_time:
-            print("time for construct_nodes:", time.time() - since)
+        #if log_time:
+            #print("time for construct_nodes:", time.time() - since)
 
     def construct_edges(self, curr_loc, only_construct_from_source=False):
         """Graph Creation: Edges
@@ -134,8 +134,8 @@ class Player:
                         continue
                     can_reach_one_unit = False  # whether at least one Unit in to_node is reachable from from_node
                     for unit_center in to_node:
-                        if not isinstance(unit_center, tuple):
-                            print(unit_center)
+                        #if not isinstance(unit_center, tuple):
+                            #print(unit_center)
                         if curr_loc.distance(
                                 sympy.geometry.Point2D(unit_center)) > self.skill:  # if outside our skill range
                             continue
@@ -168,8 +168,8 @@ class Player:
                             sympy.geometry.Point2D(to_node_center)) <= self.skill:
                         self.graph[from_node].append(to_node)
 
-        if log_time:
-            print("time for construct_edges:", time.time() - since)
+        #if log_time:
+            #print("time for construct_edges:", time.time() - since)
 
     @staticmethod
     def _get_node_center(unit_centers):
@@ -219,8 +219,8 @@ class Player:
             return "default"
         move = final_path[1]
 
-        if log_time:
-            print("time for bfs:", time.time() - since)
+        #if log_time:
+            #print("time for bfs:", time.time() - since)
         return sympy.geometry.Point2D(self.all_nodes_center[move][0], self.all_nodes_center[move][1])
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
