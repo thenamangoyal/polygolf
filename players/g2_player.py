@@ -8,7 +8,7 @@ from scipy import stats as scipy_stats
 from typing import Tuple, Iterator, List
 from sympy.geometry import Polygon, Point2D
 from matplotlib.path import Path
-from shapely.geometry import Polygon as ShapelyPolygon
+from shapely.geometry import Polygon as ShapelyPolygon, Point as ShapelyPoint
 
 
 # Cached distribution
@@ -91,6 +91,13 @@ def sympy_poly_to_mpl(sympy_poly: Polygon) -> Path:
     return Path(v, closed=True)
 
 
+def sympy_poly_to_shapely(sympy_poly: Polygon) -> ShapelyPolygon:
+    """Helper function to convert sympy Polygon to shapely Polygon object"""
+    v = sympy_poly.vertices
+    v.append(v[0])
+    return ShapelyPolygon(v)
+
+
 class ScoredPoint:
     """Scored point class for use in A* search algorithm"""
     def __init__(self, point: Tuple[float, float], goal: Tuple[float, float], actual_cost=float('inf'), previous=None):
@@ -142,7 +149,8 @@ class Player:
         self.rng = rng
         self.logger = logger
         self.map_points = None
-        self.mpl_poly = None
+        self.mpl_paly = None
+        self.shapely_poly = None
         self.goal = None
         self.prev_rv = None
 
@@ -174,12 +182,12 @@ class Player:
             target_point = tuple(Point2D)
 
         distance = np.linalg.norm(np.array(current_point).astype(float) - np.array(target_point).astype(float))
-        # TODO: Use numpy.arctan2
         cx, cy = current_point
         tx, ty = target_point
         angle = np.arctan2(float(ty) - float(cy), float(tx) - float(cx))
-        splash_zone_polygon = splash_zone(float(distance), float(angle), float(conf), self.skill, current_point)
-        return self.mpl_poly.contains_points(splash_zone_polygon).all()
+        splash_zone_poly_points = splash_zone(float(distance), float(angle), float(conf), self.skill, current_point)
+        splash_zone_poly_points.append(splash_zone_poly_points[0])
+        return self.shapely_poly.contains(ShapelyPolygon(splash_zone_poly_points))
 
     def adjacent_points(self, point: Tuple[float, float], conf: float) -> Iterator[Tuple[float, float]]:
         # check goal point
@@ -232,8 +240,10 @@ class Player:
     def _initialize_map_points(self, golf_map: Polygon):
         map_points = []
         self.mpl_poly = sympy_poly_to_mpl(golf_map)
+        self.shapely_poly = sympy_poly_to_shapely(golf_map)
         pp = list(poly_to_points(golf_map))
         for point in pp:
+            # Use matplotlib here because it's faster than shapely for this calculation...
             if self.mpl_poly.contains_point(point):
                 map_points.append(tuple(point))
         self.map_points = np.array(map_points)
