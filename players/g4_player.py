@@ -75,7 +75,7 @@ class Player:
             intersect_points_origin = circle.intersection(golf_map)
 
             intersect_points_num = len(intersect_points_origin)
-            middle_points = []
+            temp_middle_points = []
 
             for i in range(intersect_points_num):
                 for j in range(i + 1, intersect_points_num):
@@ -83,11 +83,23 @@ class Player:
                                                  float(intersect_points_origin[i].y + intersect_points_origin[j].y) / 2)
                     # find points that in the golf map polygon
                     if golf_map.encloses(middle_point):
-                        middle_points.append(middle_point)
+                        temp_middle_points.append(middle_point)
 
-            if len(middle_points) == 0:
+            if len(temp_middle_points) == 0:
                 self.logger.error(str(self.turn) + "cannot find any middle point, BUG!!!")
                 return (distance, angle)
+
+            # if there are many ways to go, delete the points that can go back
+            middle_points = []
+            for i, middle_point in enumerate(temp_middle_points):
+                if middle_point.distance(target) > required_dist:
+                    continue
+                middle_points.append(middle_point)
+
+            # if there we delete every point in temp_middle_points,
+            # which means we could go longer ways than expected, we need to add back those points
+            if len(middle_points) == 0:
+                middle_points = temp_middle_points
 
             self.remember_middle_points = middle_points
         else:
