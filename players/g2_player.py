@@ -189,6 +189,8 @@ class Player:
         while len(heap) > 0:
             next_sp = heapq.heappop(heap)
             next_p = next_sp.point
+            del best_cost[next_p]
+
             if next_p in visited:
                 continue
             if next_sp.actual_cost > 0 and not self.splash_zone_within_polygon(next_sp.previous.point, next_p, conf):
