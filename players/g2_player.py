@@ -8,15 +8,30 @@ from scipy import stats as scipy_stats
 from typing import Tuple, Iterator, List
 from sympy.geometry import Polygon, Point2D
 from matplotlib.path import Path
+from shapely.geometry import Polygon as ShapelyPolygon
+
+
+# Cached distribution
+DIST = scipy_stats.norm(0, 1)
+
+
+@functools.lru_cache()
+def standard_ppf(conf: float) -> float:
+    return DIST.ppf(conf)
+
+
+def result_point(distance: float, angle: float, current_point: Tuple[float, float]) -> Tuple[float, float]:
+    cx, cy = current_point
+    nx = cx + distance * np.cos(angle)
+    ny = cy + distance * np.sin(angle)
+    return nx, ny
 
 
 def splash_zone(distance: float, angle: float, conf: float, skill: int, current_point: Tuple[float, float]) -> List[Tuple[float, float]]:
     curr_x, curr_y = current_point
     conf_points = np.linspace(1 - conf, conf, 100)
-    d_dist = scipy_stats.norm(distance, distance/skill)
-    a_dist = scipy_stats.norm(angle, 1/(2*skill))
-    distances = np.vectorize(d_dist.ppf)(conf_points)
-    angles = np.vectorize(a_dist.ppf)(conf_points)
+    distances = np.vectorize(standard_ppf)(conf_points) * (distance / skill) + distance
+    angles = np.vectorize(standard_ppf)(conf_points) * (1/(2*skill)) + angle
     xs = []
     ys = []
     scale = 1.1
@@ -135,7 +150,7 @@ class Player:
         max_dist = 200 + self.skill
         self.max_ddist = scipy_stats.norm(max_dist, max_dist / self.skill)
 
-    @functools.cache
+    @functools.lru_cache()
     def _max_ddist_ppf(self, conf: float):
         return self.max_ddist.ppf(1.0 - conf)
 
