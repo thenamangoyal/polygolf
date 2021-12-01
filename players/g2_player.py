@@ -52,8 +52,8 @@ def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
         x_max = max(x, x_max)
         y_min = min(y, y_min)
         y_max = max(y, y_max)
-    x_step = 10.0  # meter
-    y_step = 10.0  # meter
+    x_step = 1.0  # meter
+    y_step = 1.0  # meter
 
     x_current = x_min + x_step
     y_current = y_min + y_step
@@ -248,8 +248,9 @@ class Player:
 
         target_point = None
         confidence = 0.95
+        cl = float(curr_loc.x), float(curr_loc.y)
         while target_point is None:
-            target_point = self.next_target(curr_loc, target, confidence)
+            target_point = self.next_target(cl, target, confidence)
             confidence -= 0.05
 
         # fixup target
@@ -259,7 +260,8 @@ class Player:
             v = np.array(target_point) - current_point
             u = v / dist
             if dist * 1.10 > 20.0:
-                target_point = current_point + u * dist * (1 / 1.10)
+                pass
+                # target_point = current_point + u * dist * (1 / 1.10)
             else:
                 target_point = current_point + u * dist * 1.10
 
