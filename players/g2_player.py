@@ -80,10 +80,6 @@ def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
         x_current += x_step
 
 
-def point_within_polygon(target_point: Tuple[float, float], poly: Polygon) -> bool:
-    return poly.encloses_point(target_point)
-
-
 def sympy_poly_to_mpl(sympy_poly: Polygon) -> Path:
     """Helper function to convert sympy Polygon to matplotlib Path object"""
     v = sympy_poly.vertices
@@ -307,17 +303,6 @@ def test_reachable():
     player = Player(50, 0xdeadbeef, None)
     
     assert not player.reachable_point(current_point, target_point, 0.80)
-
-
-def test_point_within_polygon():
-    poly = Polygon((0,0), (0, 300), (300, 300), (300, 0), evaluate=False)
-
-    # Just checking points inside and outside
-    inside = Point2D(0.1, 1, evaluate=False)
-    outside = Point2D(301, 301, evaluate=False)
-
-    assert point_within_polygon(inside, poly)
-    assert not point_within_polygon(outside, poly)
 
 
 def test_splash_zone_within_polygon():
