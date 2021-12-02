@@ -7,7 +7,10 @@ from typing import Tuple
 from collections import defaultdict
 import time
 
-log_time = True
+DEBUG_MSG = True  # enable print messages
+MAX_SUB_NODE_COUNT = 50  # wide node constraint
+NODE_STEP = 3  # regular node granularity
+PUTTER_NOTE_STEP = 0.5  # node granularity for putting
 
 
 class Player:
@@ -65,6 +68,7 @@ class Player:
             step (float): size of node
             target (sympy.geometry.Point2D): Target location
         """
+        global MAX_SUB_NODE_COUNT
         since = time.time()
         self.graph = {'curr_loc': []}
         self.shapely_poly = Polygon([(p.x, p.y) for p in golf_map.vertices])
@@ -84,7 +88,7 @@ class Player:
 
                 if self.validate_node(x, y, step):
                     more_nodes = 0
-                    while self.validate_node(x + step, y, step):
+                    while self.validate_node(x + step, y, step) and more_nodes < MAX_SUB_NODE_COUNT:
                         more_nodes += 1
                         x += step
 
@@ -106,8 +110,8 @@ class Player:
         self.graph[((target.x, target.y),)] = []
         self.all_nodes_center[((target.x, target.y),)] = self._get_node_center(((target.x, target.y),))
 
-        #if log_time:
-            #print("time for construct_nodes:", time.time() - since)
+        if DEBUG_MSG:
+            print("time for construct_nodes:", time.time() - since)
 
     def construct_edges(self, curr_loc, only_construct_from_source=False):
         """Graph Creation: Edges
@@ -121,6 +125,7 @@ class Player:
         """
         since = time.time()
         source_completed = False
+        skill_dist_range = 200 + self.skill
 
         for from_node in self.graph.keys():
 
@@ -132,18 +137,20 @@ class Player:
                 for to_node in self.graph.keys():
                     if to_node == from_node:  # 'curr_loc' can't have an Edge with itself
                         continue
+                    """
                     can_reach_one_unit = False  # whether at least one Unit in to_node is reachable from from_node
                     for unit_center in to_node:
-                        #if not isinstance(unit_center, tuple):
-                            #print(unit_center)
-                        if curr_loc.distance(
-                                sympy.geometry.Point2D(unit_center)) > self.skill:  # if outside our skill range
+                        if self._euc_dist((int(curr_loc.x), int(curr_loc.y)), unit_center) > skill_dist_range:
                             continue
                         can_reach_one_unit = True
                         break
 
                     # if Edge (from_node, to_node) is valid, add to from_node's adjacency list
                     if can_reach_one_unit:
+                        self.graph[from_node].append(to_node)
+                    """
+                    to_node_center = self.all_nodes_center[to_node]
+                    if self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node_center) <= skill_dist_range:
                         self.graph[from_node].append(to_node)
 
                 source_completed = True
@@ -164,12 +171,17 @@ class Player:
                     to_node_center = self.all_nodes_center[to_node]
 
                     # if the distance between the two Node centers is reachable, add to from_node's adjacency list
-                    if sympy.geometry.Point2D(from_node_center).distance(
-                            sympy.geometry.Point2D(to_node_center)) <= self.skill:
+                    if self._euc_dist(from_node_center, to_node_center) <= skill_dist_range:
                         self.graph[from_node].append(to_node)
 
-        #if log_time:
-            #print("time for construct_edges:", time.time() - since)
+        if DEBUG_MSG:
+            print("time for construct_edges:", time.time() - since)
+
+    @staticmethod
+    def _euc_dist(pt1, pt2):
+        pt1 = np.array((float(pt1[0]), float(pt1[1])))
+        pt2 = np.array((float(pt2[0]), float(pt2[1])))
+        return np.linalg.norm(pt1 - pt2)
 
     @staticmethod
     def _get_node_center(unit_centers):
@@ -216,11 +228,15 @@ class Player:
                 new_path.append(a)
                 queue.append(new_path)
         if len(final_path) < 2:
+            if DEBUG_MSG:
+                print("time for bfs:", time.time() - since)
             return "default"
+
         move = final_path[1]
 
-        #if log_time:
-            #print("time for bfs:", time.time() - since)
+        if DEBUG_MSG:
+            print("time for bfs:", time.time() - since)
+            print("final_path:", [self.all_nodes_center[move] for move in final_path[1:]])
         return sympy.geometry.Point2D(self.all_nodes_center[move][0], self.all_nodes_center[move][1])
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
@@ -240,6 +256,11 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
+        global PUTTER_NOTE_STEP
+        global NODE_STEP
+
+        if DEBUG_MSG:
+            print("curr_loc", int(curr_loc.x), int(curr_loc.y))
 
         required_dist = curr_loc.distance(target)
         """ 
@@ -252,7 +273,6 @@ class Player:
 
         # Case 1: required_dist > 20m
         if required_dist > 20:
-            step = 10
             # Detect edges of map
             map_ver = golf_map.vertices
             center = golf_map.centroid
@@ -275,7 +295,7 @@ class Player:
                     lowest = math.floor(point[1])
 
             if score == 1:
-                self.construct_nodes(golf_map, leftest, rightest, highest, lowest, step, target)
+                self.construct_nodes(golf_map, int(leftest), int(rightest), int(highest), int(lowest), NODE_STEP, target)
                 if self.needs_edge_init:
                     self.construct_edges(curr_loc, only_construct_from_source=False)  # construct all edges
                     self.needs_edge_init = False
@@ -285,12 +305,11 @@ class Player:
 
         # Case 2: required_dist < 20m (putting dist)
         else:
-            step = 0.05
             leftest = math.floor(curr_loc.x - 20)
             rightest = math.ceil(curr_loc.x + 20)
             highest = math.ceil(curr_loc.y + 20)
             lowest = math.floor(curr_loc.y - 20)
-            self.construct_nodes(golf_map, leftest, rightest, highest, lowest, step, target)
+            self.construct_nodes(golf_map, int(leftest), int(rightest), int(highest), int(lowest), PUTTER_NOTE_STEP, target)
             self.construct_edges(curr_loc, only_construct_from_source=False)
         move = self.BFS(target)
 
