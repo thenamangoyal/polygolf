@@ -39,12 +39,12 @@ class Player:
         x_delta = distance * math.cos(angle)
         new_x = curr_loc.x + x_delta
         new_y = curr_loc.y + y_delta
-        return sympy.Point(new_x, new_y)
+        return Point(new_x, new_y)
 
     def check_shot(self, distance, angle, curr_loc, roll_factor, golf_map):
         final_location = self.get_location_from_shot(distance * roll_factor, angle, curr_loc)
         drop_location = self.get_location_from_shot(distance, angle, curr_loc)
-        return golf_map.encloses_point(final_location) and golf_map.encloses_point(drop_location)
+        return golf_map.contains(final_location) and golf_map.contains(drop_location)
 
     def find_shot(self, distance, angle, curr_loc, target, roll_factor, golf_map):
         # if roll_factor is less than 1.1, it's a putt
@@ -82,7 +82,7 @@ class Player:
         roll_factor = 1.0 if required_dist < 20 else 1.1 
         distance = sympy.Min(200+self.skill, required_dist/roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
-        new_distance, new_angle = self.find_shot(distance, angle, curr_loc, target, roll_factor, golf_map)
+        new_distance, new_angle = self.find_shot(distance, angle, curr_loc, target, roll_factor, self.golf_map)
 
         angle_adjusted = sympy.pi/18
         while new_distance == None:
