@@ -23,6 +23,7 @@ class Player:
         self.golf_map = None
         self.valueMap = defaultdict(lambda: float('inf'))
         self.graph = {}
+        self.angle_std = math.sqrt(1/(2 * skill))
 
     def create_grid(self, polygon):
         self.grid = []
@@ -36,8 +37,25 @@ class Player:
                     self.logger.info((x,y))
                     self.grid.append(p)
 
-    def risk_estimation(self, point):
-        return 0.0
+    def risk_estimation(self, point, target, distance):
+        distance_variance = distance/self.skill
+        distance_std = math.sqrt(distance_variance)
+
+        base_angle = sympy.atan2(target.y - point.y, target.x - point.x)
+        risk_object = Point(target.x, target.y).buffer(2 * distance_std)
+        weights = [-1.5, -1, 0.5, 0.5, 1, 1.5]
+        for weight in weights:
+            angle = base_angle + weight * self.angle_std
+            new_target = Point(point.x + distance * math.cos(angle),
+                               point.y + distance * math.sin(angle))
+            new_circle = Point(new_target.x, new_target.y).buffer(2 * distance_std)
+            risk_object = risk_object.union(new_circle)
+
+        risk_object_area = risk_object.area
+        land_area = self.golf_map.intersection(risk_object).area
+        risk = 1 - round((land_area/risk_object_area), 7)
+
+        return risk
 
     def value_estimation(self, target):
         not_visited = set([PolygonUtility.point_hash(p) for p in self.grid])
@@ -48,9 +66,9 @@ class Player:
             for point in self.grid:
                 if circle.contains(point) and self.test_greedy_shot(point, t):
                     # alpha(risk) + (1-alpha)(ve)
-                    distance_to =  point.distance(t)
+                    distance_to = point.distance(t)
                     ph = PolygonUtility.point_hash(point)
-                    value_estimate = self.risk_estimation(point) + distance_to / 300 + 1 + v
+                    value_estimate = self.risk_estimation(point, t, distance_to) + distance_to / 300 + 1 + v
                     if value_estimate < self.valueMap[ph]:
                         self.valueMap[ph] = value_estimate
                         self.graph[ph] = t
