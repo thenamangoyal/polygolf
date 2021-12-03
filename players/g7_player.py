@@ -21,8 +21,8 @@ class Player:
         self.logger.info(f'SKILL LEVEL: {self.skill}')
         self.grid = None 
         self.golf_map = None
-        self.valueMap = {}
-        self.graph = defaultdict(list)
+        self.valueMap = defaultdict(lambda: float('inf'))
+        self.graph = {}
 
     def create_grid(self, polygon):
         self.grid = []
@@ -31,26 +31,46 @@ class Player:
         granularity = 10
         for x in range(math.floor(minX), math.ceil(maxX + 1), granularity):
             for y in range(math.floor(minY), math.ceil(maxY + 1), granularity):
-                self.logger.info((x,y))
-                self.grid.append(Point(x,y))
-
-
+                p = Point(x,y)
+                if self.golf_map.contains(p):
+                    self.logger.info((x,y))
+                    self.grid.append(p)
 
     def risk_estimation(self, point):
         return 0.0
 
     def value_estimation(self, target):
-        # generate a circle around the target
+        not_visited = set(self.grid)
+        def assign_value_est(p, v):
+            # generate a circle around the target
+            circle = Point(p.x, p.y).buffer(200 + self.skill)
+            coveredPoints = []
+            for point in self.grid:
+                if circle.contains(point):
+                    # alpha(risk) + (1-alpha)(ve)
+                    distance_to =  point.distance(p)
+                    ph = PolygonUtility.point_hash(p)
+                    value_estimate = self.risk_estimation(p) + distance_to / 300 + 1 + v
+                    if value_estimate < self.valueMap[ph]:
+                        self.valueMap[ph] = value_estimate
+                        self.graph[ph] = p
+                    if point in not_visited:
+                        not_visited.remove(point)
+                        coveredPoints.append((point, self.valueMap[ph]))
+            return sorted(coveredPoints, lambda x: x[1])
         ALPHA = 0.5
-        circle = Point(target.x, target.y).buffer(200 + self.skill)
-        for point in self.grid:
-            if circle.contains(point):
-                # alpha(risk) + (1-alpha)(ve)
-                distance_to =  point.distance(target)
-                ph = PolygonUtility.point_hash(point)
-                self.valueMap[ph] = self.risk_estimation(point) + distance_to / 100 + 1
-                self.graph[ph].append(target)
-        self.logger.info(self.valueMap)
+        best_locations = assign_value_est(target, 0)
+        while len(best_locations) > 0:
+            newBest = []
+            self.logger.info(len(not_visited))
+            for point, value in best_locations:
+                if len(not_visited) == 0:
+                    break
+                newBest.extend(assign_value_est(point, value))
+            best_locations = sorted(newBest, lambda x: x[1])
+
+
+
 
 
     def get_location_from_shot(self, distance, angle, curr_loc):
