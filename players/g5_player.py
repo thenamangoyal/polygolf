@@ -7,6 +7,30 @@ from typing import Tuple
 from shapely.geometry import Polygon, Point, LineString
 from time import time
 
+
+class LandingPoint(object):
+    def __init__(self, x, y, distance_from_origin, angle):
+        #distance_from_origin is the distance from our curr_location to the landing point
+
+        self.point = Point(x, y)
+        self.distance_from_origin = distance_from_origin
+        self.angle = angle
+
+    @staticmethod
+    def is_on_land(x, y, polygon):
+        pass
+
+    def confidence(self):
+        pass
+
+    def heuristic(self):
+        pass
+
+    def score(self):
+        #uses confidence and heuristic
+        pass
+
+
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
         """Initialise the player with given skill.
