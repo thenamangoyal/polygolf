@@ -27,7 +27,7 @@ class Player:
         self.logger = logger
 
         self.shapely_poly = None
-        self.graph = {}
+        self.graph = {}  # self.graph[node_i] contains a list of edges where each edge_j = (node_j, weight, f_count)
         self.all_nodes_center = {}
         self.needs_edge_init = True
 
@@ -126,6 +126,7 @@ class Player:
         since = time.time()
         source_completed = False
         skill_dist_range = 200 + self.skill
+        epsilon = 0.01
 
         for from_node in self.graph.keys():
 
@@ -150,7 +151,7 @@ class Player:
                         self.graph[from_node].append(to_node)
                     """
                     to_node_center = self.all_nodes_center[to_node]
-                    if self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node_center) <= skill_dist_range:
+                    if self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node_center) <= skill_dist_range + epsilon:
                         self.graph[from_node].append(to_node)
 
                 source_completed = True
@@ -260,7 +261,7 @@ class Player:
         global NODE_STEP
 
         if DEBUG_MSG:
-            print("curr_loc", int(curr_loc.x), int(curr_loc.y))
+            print("curr_loc", float(curr_loc.x), float(curr_loc.y))
 
         required_dist = curr_loc.distance(target)
         """ 
