@@ -27,8 +27,9 @@ class Player:
         self.golf_map, bounding_box = PolygonUtility.convert_sympy_to_shapely(polygon)
         minX, minY, maxX, maxY = bounding_box
         granularity = 10
-        for x in range(minX, maxX + 1, granularity):
-            for y in range(minY, maxY + 1, granularity):
+        for x in range(math.floor(minX), math.ceil(maxX + 1), granularity):
+            for y in range(math.floor(minY), math.ceil(maxY + 1), granularity):
+                self.logger.info((x,y))
                 self.grid.append(Point(x,y))
 
 
@@ -103,13 +104,14 @@ class PolygonUtility:
         return polygon + bounding box
         '''
         points = []
-        maxX, minX = None, None
-        maxY, minY = None, None
+        maxX, minX = float('-inf'), float('inf') 
+        maxY, minY = float('-inf'), float('inf')
         for p in sympy_polygon.vertices:
-            maxX = max(maxX, p.x)
-            minX = min(minX, p.x)
-            maxY = max(maxY, p.y)
-            minY = min(minY, p.y)
+            floatX, floatY = float(p.x), float(p.y)
+            maxX = max(maxX, floatX)
+            minX = min(minX, floatX)
+            maxY = max(maxY, floatY)
+            minY = min(minY, floatY)
             points.append((p.x,p.y))
         return Polygon(points), (minX, minY, maxX, maxY)
 
