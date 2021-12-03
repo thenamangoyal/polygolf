@@ -3,6 +3,7 @@ import sympy
 import logging
 import math
 from typing import Tuple
+from shapely.geometry import Polygon, Point
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -17,6 +18,19 @@ class Player:
         self.rng = rng
         self.logger = logger
         self.logger.info(f'SKILL LEVEL: {self.skill}')
+        self.grid = None 
+        self.golf_map = None
+        self.valueMap = {}
+
+    def create_grid(self, polygon):
+        self.grid = []
+        self.golf_map, bounding_box = PolygonUtility.convert_sympy_to_shapely(polygon)
+        minX, minY, maxX, maxY = bounding_box
+        granularity = 10
+        for x in range(minX, maxX + 1, granularity):
+            for y in range(minY, maxY + 1, granularity):
+                self.grid.append(Point(x,y))
+
 
     def get_location_from_shot(self, distance, angle, curr_loc):
         # angle is in rads
@@ -61,6 +75,8 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
+        if not self.grid:
+            self.create_grid(golf_map)
         required_dist = curr_loc.distance(target)
         roll_factor = 1.0 if required_dist < 20 else 1.1 
         distance = sympy.Min(200+self.skill, required_dist/roll_factor)
@@ -78,3 +94,22 @@ class Player:
                 break
 
         return (new_distance, new_angle)
+
+class PolygonUtility:
+
+    @staticmethod
+    def convert_sympy_to_shapely(sympy_polygon):
+        '''
+        return polygon + bounding box
+        '''
+        points = []
+        maxX, minX = None, None
+        maxY, minY = None, None
+        for p in sympy_polygon.vertices:
+            maxX = max(maxX, p.x)
+            minX = min(minX, p.x)
+            maxY = max(maxY, p.y)
+            minY = min(minY, p.y)
+            points.append((p.x,p.y))
+        return Polygon(points), (minX, minY, maxX, maxY)
+
