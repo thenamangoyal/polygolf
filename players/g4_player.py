@@ -34,10 +34,13 @@ class Player:
         for i,row in enumerate(grid_points): 
             water_grid.append([])
             for j,point in enumerate(row):
+                
                 thebool = poly.contains(point)
                 
                 water_grid[i].append(thebool)
+            
         print(np.array(water_grid))
+        return np.array(water_grid)
 
 
 
@@ -45,6 +48,7 @@ class Player:
         curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D):
 
         poly=geometry.Polygon([p.x, p.y] for p in golf_map.vertices)
+        target_shapely = geometry.Point(target[0], target[1])
         print("convert")
 
         (xmin, ymin, xmax, ymax) = golf_map.bounds
@@ -53,7 +57,7 @@ class Player:
         
         queue = []
         dimension = 10
-        allowed_distance = 5
+        allowed_distance = 100
         threshold = 20.0
         amt=1
         grid_of_scores = np.array(np.ones((dimension,dimension))*100000)
@@ -79,7 +83,20 @@ class Player:
                 #list_of_distances[x_index].append(thedistance)
                 #print(float(considered_point[0]),float(considered_point[1]), float(curr_loc[0]), float(curr_loc[1]))
         print("test1")
-        self.water_boolean(poly, list_of_lists)
+        water_grid = self.water_boolean(poly, list_of_lists) # True if on LAND
+        for x_index in range(len(list_of_lists)):
+            for y_index in range(len(list_of_lists[0])): 
+                thedistance = target_shapely.distance(list_of_lists[x_index][y_index])
+                print(thedistance)
+                print(allowed_distance)
+                print(water_grid[x_index][y_index] and thedistance < allowed_distance)
+                if (thedistance < allowed_distance) and water_grid[x_index][y_index]:
+                    queue.append((x_index,y_index))
+                    print(queue, "what")
+        print(queue)
+        print("HELL")
+        print(water_grid)
+
         """BFS stuff"""
         if thedistance < threshold:
             grid_of_scores[x_index,y_index] = amt
