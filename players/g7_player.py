@@ -40,22 +40,22 @@ class Player:
         return 0.0
 
     def value_estimation(self, target):
-        not_visited = set(self.grid)
-        def assign_value_est(p, v):
+        not_visited = set([(p.x, p.y) for p in self.grid])
+        def assign_value_est(t:Point, v):
             # generate a circle around the target
-            circle = Point(p.x, p.y).buffer(200 + self.skill)
+            circle = Point(t.x, t.y).buffer(200 + self.skill)
             coveredPoints = []
             for point in self.grid:
                 if circle.contains(point):
                     # alpha(risk) + (1-alpha)(ve)
-                    distance_to =  point.distance(p)
-                    ph = PolygonUtility.point_hash(p)
-                    value_estimate = self.risk_estimation(p) + distance_to / 300 + 1 + v
+                    distance_to =  point.distance(t)
+                    ph = PolygonUtility.point_hash(point)
+                    value_estimate = self.risk_estimation(point) + distance_to / 300 + 1 + v
                     if value_estimate < self.valueMap[ph]:
                         self.valueMap[ph] = value_estimate
-                        self.graph[ph] = p
+                        self.graph[ph] = t
                     if point in not_visited:
-                        not_visited.remove(point)
+                        not_visited.remove((point.x, point.y))
                         coveredPoints.append((point, self.valueMap[ph]))
             return sorted(coveredPoints, lambda x: x[1])
         ALPHA = 0.5
