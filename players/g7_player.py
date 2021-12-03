@@ -28,7 +28,7 @@ class Player:
         self.grid = []
         self.golf_map, bounding_box = PolygonUtility.convert_sympy_to_shapely(polygon)
         minX, minY, maxX, maxY = bounding_box
-        granularity = 10
+        granularity = 20
         for x in range(math.floor(minX), math.ceil(maxX + 1), granularity):
             for y in range(math.floor(minY), math.ceil(maxY + 1), granularity):
                 p = Point(x,y)
@@ -40,7 +40,7 @@ class Player:
         return 0.0
 
     def value_estimation(self, target):
-        not_visited = set([(p.x, p.y) for p in self.grid])
+        not_visited = set([PolygonUtility.point_hash(p) for p in self.grid])
         def assign_value_est(t:Point, v):
             # generate a circle around the target
             circle = Point(t.x, t.y).buffer(200 + self.skill)
@@ -54,10 +54,10 @@ class Player:
                     if value_estimate < self.valueMap[ph]:
                         self.valueMap[ph] = value_estimate
                         self.graph[ph] = t
-                    if point in not_visited:
-                        not_visited.remove((point.x, point.y))
+                    if ph in not_visited:
+                        not_visited.remove(ph)
                         coveredPoints.append((point, self.valueMap[ph]))
-            return sorted(coveredPoints, lambda x: x[1])
+            return sorted(coveredPoints, key = lambda x: x[1])
         ALPHA = 0.5
         best_locations = assign_value_est(target, 0)
         while len(best_locations) > 0:
@@ -67,10 +67,10 @@ class Player:
                 if len(not_visited) == 0:
                     break
                 newBest.extend(assign_value_est(point, value))
-            best_locations = sorted(newBest, lambda x: x[1])
-
-
-
+            best_locations = sorted(newBest, key = lambda x: x[1])
+        self.logger.info('graph:')
+        for key, value in sorted(self.graph.items(), key = lambda x: x[0]):
+            self.logger.info((key, self.valueMap[key], value))
 
 
     def get_location_from_shot(self, distance, angle, curr_loc):
