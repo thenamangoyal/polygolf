@@ -4,7 +4,8 @@ import logging
 import math
 from typing import Tuple
 from shapely.geometry import Polygon, Point
-
+import shapely.affinity
+from collections import defaultdict
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
         """Initialise the player with given skill.
@@ -21,6 +22,7 @@ class Player:
         self.grid = None 
         self.golf_map = None
         self.valueMap = {}
+        self.graph = defaultdict(list)
 
     def create_grid(self, polygon):
         self.grid = []
@@ -31,6 +33,22 @@ class Player:
             for y in range(math.floor(minY), math.ceil(maxY + 1), granularity):
                 self.logger.info((x,y))
                 self.grid.append(Point(x,y))
+
+    def risk_estimation(self, point):
+        return 0.0
+
+    def value_estimation(self, target):
+        # generate a circle around the target
+        ALPHA = 0.5
+        circle = Point(target.x, target.y).buffer(200 + self.skill)
+        self.logger(list(circle.exterior.coords))
+        for point in self.grid:
+            if circle.contains(point):
+                # alpha(risk) + (1-alpha)(ve)
+                distance_to =  point.distance(target)
+                self.valueMap[point] = self.risk_estimation(point) + distance_to / 100 + 1
+                self.graph[point].append(target)
+        self.logger.info(self.valueMap)
 
 
     def get_location_from_shot(self, distance, angle, curr_loc):
@@ -78,6 +96,7 @@ class Player:
         """
         if not self.grid:
             self.create_grid(golf_map)
+            self.value_estimation(target)
         required_dist = curr_loc.distance(target)
         roll_factor = 1.0 if required_dist < 20 else 1.1 
         distance = sympy.Min(200+self.skill, required_dist/roll_factor)
