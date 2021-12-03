@@ -5,28 +5,11 @@ import sympy
 import logging
 from typing import Tuple
 import constants
-from numba import jit
+import shapely.geometry
 
 
 def get_distance(point1, point2):
     return pow(point1.x - point2.x, 2) + pow(point1.y - point2.y, 2)
-
-
-@jit(nopython=True)
-def point_inside_polygon(poly: np.array, px: float, py: float) -> bool:
-    # http://paulbourke.net/geometry/polygonmesh/#insidepoly
-    # https://stackoverflow.com/questions/36399381/whats-the-fastest-way-of-checking-if-a-point-is-inside-a-polygon-in-python
-    n = len(poly)
-    inside = False
-    p1x, p1y = poly[0]
-    for i in range(1, n + 1):
-        p2x, p2y = poly[i % n]
-        if min(p1y, p2y) < py <= max(p1y, p2y) and px <= max(p1x, p2x) and p1x != p2y:
-            xints = (py - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-            if p1x == p2x or px <= xints:
-                inside = not inside
-        p1x, p1y = p2x, p2y
-    return inside
 
 
 class Point:
@@ -54,7 +37,7 @@ class Player:
         self.remember_middle_points = []
 
         self.turn = 0
-        self.golf_map_np = None
+        self.shapely_golf_map = None
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
              curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D,
@@ -74,7 +57,7 @@ class Player:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
         if self.turn == 0:
-            self.golf_map_np = np.asarray([(float(p.x), float(p.y)) for p in golf_map.vertices])
+            self.shapely_golf_map = shapely.geometry.polygon.Polygon(golf_map.vertices)
 
         self.turn += 1
         # 1. always try greedy first
@@ -180,7 +163,7 @@ class Player:
         self.logger.info(str(self.turn) + "risky!!! select closest middle point to go")
         return (desire_distance, desire_angle)
 
-    def simulate_once(self, distance, angle, curr_loc, golf_map):
+    def simulate_shapely_once(self, distance, angle, curr_loc, golf_map):
         actual_distance = self.rng.normal(distance, distance / self.skill)
         actual_angle = self.rng.normal(angle, 1 / (2 * self.skill))
 
@@ -188,18 +171,17 @@ class Player:
         # final_point means the final stopped point, it is not equal
         if distance < constants.min_putter_dist:
             landing_point = curr_loc
-            final_point = Point(curr_loc.x + actual_distance * np.cos(actual_angle),
-                                curr_loc.y + actual_distance * np.sin(actual_angle))
+            final_point = shapely.geometry.Point(curr_loc.x + actual_distance * np.cos(actual_angle),
+                                                 curr_loc.y + actual_distance * np.sin(actual_angle))
 
         else:
-            landing_point = Point(curr_loc.x + actual_distance * np.cos(actual_angle),
-                                  curr_loc.y + actual_distance * np.sin(actual_angle))
-            final_point = Point(
+            landing_point = shapely.geometry.Point(curr_loc.x + actual_distance * np.cos(actual_angle),
+                                                   curr_loc.y + actual_distance * np.sin(actual_angle))
+            final_point = shapely.geometry.Point(
                 curr_loc.x + (1. + constants.extra_roll) * actual_distance * np.cos(actual_angle),
                 curr_loc.y + (1. + constants.extra_roll) * actual_distance * np.sin(actual_angle))
 
-        is_inside = point_inside_polygon(golf_map, landing_point.x, landing_point.y) and \
-                    point_inside_polygon(golf_map, final_point.x, final_point.y)
+        is_inside = golf_map.contains(landing_point) and golf_map.contains(final_point)
 
         return is_inside, final_point
 
@@ -225,7 +207,7 @@ class Player:
             succ_times = 0
             for _ in range(self.simulate_times):
                 angle = sympy.atan2(point.y - curr_loc.y, point.x - curr_loc.x)
-                is_succ, _ = self.simulate_once(get_distance(curr_loc, point), angle, curr_loc, self.golf_map_np)
+                is_succ, _ = self.simulate_shapely_once(get_distance(curr_loc, point), angle, curr_loc, self.shapely_golf_map)
                 succ_times += is_succ
 
             if succ_times / self.simulate_times >= 1 - self.risk:
