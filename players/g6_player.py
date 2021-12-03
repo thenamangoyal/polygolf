@@ -5,6 +5,9 @@ import math
 import logging
 from typing import Tuple
 from collections import defaultdict
+import time
+
+log_time = True
 
 
 class Player:
@@ -23,6 +26,7 @@ class Player:
         self.shapely_poly = None
         self.graph = {}
         self.all_nodes_center = {}
+        self.needs_edge_init = True
 
     def validate_node(self, x, y, step):
         """ Function which determines if a node of size step x step centered at (x, y) is a valid node in our 
@@ -61,6 +65,7 @@ class Player:
             step (float): size of node
             target (sympy.geometry.Point2D): Target location
         """
+        since = time.time()
         self.graph = {'curr_loc': []}
         self.shapely_poly = Polygon([(p.x, p.y) for p in golf_map.vertices])
 
@@ -101,6 +106,9 @@ class Player:
         self.graph[((target.x, target.y),)] = []
         self.all_nodes_center[((target.x, target.y),)] = self._get_node_center(((target.x, target.y),))
 
+        #if log_time:
+            #print("time for construct_nodes:", time.time() - since)
+
     def construct_edges(self, curr_loc, only_construct_from_source=False):
         """Graph Creation: Edges
         - In short, we construct directional Edge e: (n1, n2) if our skill level allows us to reach n2 from n1
@@ -111,6 +119,7 @@ class Player:
             use the midpoint of that Node (not the midpoint of some unit grid within the Node) as the origin of our
             circular range
         """
+        since = time.time()
         source_completed = False
 
         for from_node in self.graph.keys():
@@ -125,9 +134,10 @@ class Player:
                         continue
                     can_reach_one_unit = False  # whether at least one Unit in to_node is reachable from from_node
                     for unit_center in to_node:
-                        if not isinstance(unit_center, tuple):
-                            print(unit_center)
-                        if curr_loc.distance(sympy.geometry.Point2D(unit_center)) > self.skill:  # if outside our skill range
+                        #if not isinstance(unit_center, tuple):
+                            #print(unit_center)
+                        if curr_loc.distance(
+                                sympy.geometry.Point2D(unit_center)) > self.skill:  # if outside our skill range
                             continue
                         can_reach_one_unit = True
                         break
@@ -154,8 +164,12 @@ class Player:
                     to_node_center = self.all_nodes_center[to_node]
 
                     # if the distance between the two Node centers is reachable, add to from_node's adjacency list
-                    if sympy.geometry.Point2D(from_node_center).distance(sympy.geometry.Point2D(to_node_center)) <= self.skill:
+                    if sympy.geometry.Point2D(from_node_center).distance(
+                            sympy.geometry.Point2D(to_node_center)) <= self.skill:
                         self.graph[from_node].append(to_node)
+
+        #if log_time:
+            #print("time for construct_edges:", time.time() - since)
 
     @staticmethod
     def _get_node_center(unit_centers):
@@ -168,7 +182,7 @@ class Player:
             node_center_y = (mid_left_unit_center[1] + mid_right_unit_center[1]) / 2
             node_center = (node_center_x, node_center_y)
         return node_center
-    
+
     def BFS(self, target):
         """Function that performs BFS on the graph of nodes to find a path to the target, prioritizing minimum
         moves in order to minimize our score.
@@ -176,6 +190,8 @@ class Player:
         Returns:
             Node to make a move towards.
         """
+        since = time.time()
+
         visited = defaultdict(int)
         compare_target = ((target.x, target.y),)
         queue = []
@@ -185,13 +201,13 @@ class Player:
             path = queue.pop(0)
             node = path[-1]
             if node == compare_target:
-                #print(path)
-                final_path =  path
+                # print(path)
+                final_path = path
                 break
-            
+
             if visited[node] > 0 and visited[node] <= len(path):
                 continue
-            
+
             visited[node] = len(path)
 
             adj = self.graph[node]
@@ -202,9 +218,11 @@ class Player:
         if len(final_path) < 2:
             return "default"
         move = final_path[1]
+
+        #if log_time:
+            #print("time for bfs:", time.time() - since)
         return sympy.geometry.Point2D(self.all_nodes_center[move][0], self.all_nodes_center[move][1])
 
-        
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
              curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D,
              prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
@@ -258,9 +276,12 @@ class Player:
 
             if score == 1:
                 self.construct_nodes(golf_map, leftest, rightest, highest, lowest, step, target)
-                self.construct_edges(curr_loc, only_construct_from_source=False)  # construct all edges
+                if self.needs_edge_init:
+                    self.construct_edges(curr_loc, only_construct_from_source=False)  # construct all edges
+                    self.needs_edge_init = False
             else:
-                self.construct_edges(curr_loc, only_construct_from_source=True)  # only construct outgoing edges of curr_loc
+                self.construct_edges(curr_loc,
+                                     only_construct_from_source=True)  # only construct outgoing edges of curr_loc
 
         # Case 2: required_dist < 20m (putting dist)
         else:
@@ -276,14 +297,14 @@ class Player:
         roll_factor = 1.1
         if required_dist < 20:
             roll_factor = 1.0
-        
+
         if move == "default":
             distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
             angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
             return (distance, angle)
-        
-        distance = curr_loc.distance(move)/roll_factor
+
+        distance = curr_loc.distance(move) / roll_factor
         angle = sympy.atan2(move.y - curr_loc.y, move.x - curr_loc.x)
-        #distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
-        #angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+        # distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
+        # angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
         return (distance, angle)

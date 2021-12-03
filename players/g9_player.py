@@ -42,6 +42,7 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
+        print('ROAR')
         required_dist = curr_loc.distance(target)
         roll_factor = 1.1
         if required_dist < 20:
@@ -55,21 +56,27 @@ class Player:
         
         
         # if we're landing in water, then try different angles until we land on grass.
-        if golf_map.encloses_point(landing_point) == False:
+        if golf_map.encloses(landing_point) == False:
             potential_angle = delta_angle
             while(potential_angle <= sympy.pi):
                 # Check in one direction
-                if golf_map.encloses_point(self.get_landing_point(curr_loc, distance, angle + potential_angle)) == True:
+                if golf_map.encloses(self.get_landing_point(curr_loc, distance, angle + potential_angle)) == True:
                     angle = angle + potential_angle
                     break
                 # Check in the other direction
-                if golf_map.encloses_point(self.get_landing_point(curr_loc, distance, angle - potential_angle)) == True:
+                if golf_map.encloses(self.get_landing_point(curr_loc, distance, angle - potential_angle)) == True:
                     angle = angle - potential_angle
                     break
                     
                 potential_angle += delta_angle
-        
-        #print("-------------------------------------------------------------------------------")
-        #print(distance, angle)
-        #print("-------------------------------------------------------------------------------")
+                print('In da loop ', potential_angle)
+            
+            # If we went through all angles and none of them work try to decrease the distance
+            if potential_angle > sympy.pi:
+                distance -= 10
+                angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+                while golf_map.encloses_point(self.get_landing_point(curr_loc, distance, angle)) == False:
+                    distance -= 10
+
+        print('Turn is finished')            
         return (distance, angle)
