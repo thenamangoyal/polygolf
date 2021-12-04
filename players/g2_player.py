@@ -28,19 +28,16 @@ def result_point(distance: float, angle: float, current_point: Tuple[float, floa
     return nx, ny
 
 
-# TODO: This function is quite slow, if we could speed this up somehow it would be quite
-#  advantageous
-def spread_points(current_point, angles, min_distance, points, reverse):
+def spread_points(current_point, angles: np.array, distance, reverse) -> np.array:
     curr_x, curr_y = current_point
     if reverse:
-        angles = reversed(angles)
-    for a in angles:
-        x = curr_x + min_distance * np.cos(a)
-        y = curr_y + min_distance * np.sin(a)
-        points.append((x, y))
+        angles = np.flip(angles)
+    xs = np.cos(angles) * distance + curr_x
+    ys = np.sin(angles) * distance + curr_y
+    return np.column_stack((xs, ys))
 
 
-def splash_zone(distance: float, angle: float, conf: float, skill: int, current_point: Tuple[float, float]) -> List[Tuple[float, float]]:
+def splash_zone(distance: float, angle: float, conf: float, skill: int, current_point: Tuple[float, float]) -> np.array:
     conf_points = np.linspace(1 - conf, conf, 50)
     distances = np.vectorize(standard_ppf)(conf_points) * (distance / skill) + distance
     angles = np.vectorize(standard_ppf)(conf_points) * (1/(2*skill)) + angle
@@ -49,12 +46,12 @@ def splash_zone(distance: float, angle: float, conf: float, skill: int, current_
         scale = 1.0
     max_distance = distances[-1]*scale
     points = []
-    spread_points(current_point, angles, max_distance, points, False)
+    top_arc = spread_points(current_point, angles, max_distance, False)
 
     min_distance = distances[0]
-    spread_points(current_point, angles, min_distance, points, True)
+    bottom_arc = spread_points(current_point, angles, min_distance, True)
 
-    return points
+    return np.concatenate((top_arc, bottom_arc, np.array([top_arc[0]])))
 
 
 def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
@@ -187,7 +184,6 @@ class Player:
         tx, ty = target_point
         angle = np.arctan2(float(ty) - float(cy), float(tx) - float(cx))
         splash_zone_poly_points = splash_zone(float(distance), float(angle), float(conf), self.skill, current_point)
-        splash_zone_poly_points.append(splash_zone_poly_points[0])
         return self.shapely_poly.contains(ShapelyPolygon(splash_zone_poly_points))
 
     def numpy_adjacent_and_dist(self, point: Tuple[float, float], conf: float):
@@ -220,6 +216,8 @@ class Player:
 
             if np.linalg.norm(np.array(self.goal) - np.array(next_p)) <= 5.4 / 100.0:
                 # All we care about is the next point
+                # TODO: We need to check if the path length is <= 10, because if it isn't we probably need to
+                #  reduce the conf and try again for a shorter path.
                 while next_sp.previous.point != start_point:
                     next_sp = next_sp.previous
                 return next_sp.point
