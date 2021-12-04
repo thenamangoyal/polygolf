@@ -2,6 +2,7 @@ import os
 
 timeout = 1
 
+default_map = os.path.join("maps", "default", "test.json")
 possible_players = ["d"] + list(map(str, range(1, 10)))
 end_player_states = ["S", "F"]
 

@@ -2,7 +2,7 @@ import numpy as np
 import sympy
 import logging
 from typing import Tuple
-from shapely.geometry import shape, Polygon
+from shapely.geometry import shape, Polygon, LineString , Point
 from sympy import Point2D
 import math
 import matplotlib.pyplot as plt
@@ -46,6 +46,7 @@ class Player:
         self.target = (0,0)
         self.turns = 0
         self.map = None
+        self.map_shapely =None
     def point_inside_polygon(self,poly, p) -> bool:
     # http://paulbourke.net/geometry/polygonmesh/#insidepoly
         n = len(poly)
@@ -86,7 +87,7 @@ class Player:
     def sector(self, center, start_angle, end_angle, radius):
         def polar_point(origin_point, angle,  distance):
             return [origin_point.x + math.sin(math.radians(angle)) * distance, origin_point.y + math.cos(math.radians(angle)) * distance]
-        steps=50
+        steps=10
         if start_angle > end_angle:
             t = start_angle
             start_angle = end_angle
@@ -96,76 +97,51 @@ class Player:
         step_angle_width = (end_angle-start_angle) / steps
         sector_width = (end_angle-start_angle) 
         segment_vertices = []
-
         segment_vertices.append(polar_point(center, 0,0))
         segment_vertices.append(polar_point(center, start_angle,radius))
-        
-
         for z in range(1, steps):
             segment_vertices.append((polar_point(center, start_angle + z * step_angle_width,radius)))
         segment_vertices.append(polar_point(center, start_angle+sector_width,radius))
         #print(segment_vertices)
         return Polygon(segment_vertices)
-    def is_landing_pt_safe(self, iteration: int, golf_map: sympy.Polygon, curr_loc: sympy.geometry.Point2D,
-                       distance: float,
-                       angle: float) -> bool:
 
-        valid_cnt = 0
-        for _ in range(iteration):
-            # From golf_game.py
-            actual_distance = self.rng.normal(distance, distance / self.skill)
-            actual_angle = self.rng.normal(angle, 1 / (2 * self.skill))
-
-            if constants.max_dist + self.skill >= distance >= constants.min_putter_dist:
-                landing_point = Point2D(curr_loc[0] + actual_distance * sympy.cos(actual_angle),
-                                    curr_loc[1] + actual_distance * sympy.sin(actual_angle))
-                final_point = Point2D(
-                    curr_loc[0] + (1. + constants.extra_roll) * actual_distance * sympy.cos(actual_angle),
-                    curr_loc[1] + (1. + constants.extra_roll) * actual_distance * sympy.sin(actual_angle))
-            else:
-                landing_point = curr_loc
-                final_point = sympy.Point2D(curr_loc[0] + actual_distance * sympy.cos(actual_angle),
-                                        curr_loc[1] + actual_distance * sympy.sin(actual_angle))
-
-            segment_land = sympy.geometry.Segment2D(landing_point, final_point)
-            if golf_map.encloses(segment_land):
-                valid_cnt += 1
-
-        return valid_cnt == iteration
-    def positionSafety(self, d, angle, start_point, golf_map):
+    def positionSafety(self, d, angle, start_point):
         #CIRCLE of radiues = 2 standand deviations
         angle_2std = math.degrees(2*(1/self.skill))
         distance_2std = 2*(d/self.skill)
         center = start_point
-        print("start ")
-        print(angle + angle_2std)
-        print("end ")
-        print(angle - angle_2std)
         #print("end "+ angle - angle_2std)
         sector1 = self.sector(center, angle + angle_2std, angle - angle_2std, d - distance_2std)
         sector2 = self.sector(center, angle + angle_2std, angle - angle_2std, d + distance_2std )
-        probable_landing_region = sector1.intersection(sector2)
-        shape_map = golf_map.vertices
-        x,y = probable_landing_region.exterior.xy
+        probable_landing_region = sector1.intersection(sector2).buffer(0)
+        shape_map = self.map.vertices
         shape_map_work = Polygon(shape_map)
         #fig = plt.figure()
         #plt.plot(x,y)
         #plt.show()
         
-        area_inside_the_polygon =  (probable_landing_region.intersection(shape_map_work).area)/probable_landing_region.area
-        print(area_inside_the_polygon)
-
-    def travel_extra_10percent_safety(self, d, angle, start_point, golf_map):
+        area_inside_the_polygon =  ((probable_landing_region.intersection(shape_map_work.buffer(0))).area)/probable_landing_region.area
+        return (area_inside_the_polygon==1)
+        
+    def is_safe(self, d, angle, start_point):
         angle_2std = math.degrees(2*(1/self.skill))
         distance_2std = 2*(d/self.skill)
-        center = start_point
-        sector1 = self.sector(center, angle + angle_2std, angle - angle_2std, d + distance_2std + 0.1*d)
-        sector2 = self.sector(center, angle + angle_2std, angle - angle_2std, d + distance_2std )
-        probable_landing_region = sector1.intersection(sector2)
-        shape_map = golf_map.vertices
-        x,y = probable_landing_region.exterior.xy
-        shape_map_work = Polygon(shape_map)
-        return (area_inside_the_polygon)
+        begin_line1 = (start_point.x + (d-distance_2std)*math.cos(angle - angle_2std), start_point.y + (d-distance_2std)*math.cos(angle - angle_2std))
+        begin_line2 = (start_point.x + (d-distance_2std)*math.cos(angle + angle_2std), start_point.y + (d-distance_2std)*math.cos(angle + angle_2std))
+        end_line1 = (start_point.x + (d+distance_2std)*math.cos(angle - angle_2std), start_point.y + (d+distance_2std)*math.cos(angle - angle_2std))
+        end_line2 = (start_point.x + (d+distance_2std)*math.cos(angle + angle_2std), start_point.y + (d+distance_2std)*math.cos(angle + angle_2std))
+        L1 = LineString([Point(begin_line1), Point(end_line1)])
+
+        print(start_point)
+        print(L1)
+        L2 = LineString([Point(begin_line2), Point(end_line2)])
+        check1 = self.map_shapely.intersection(L1)
+        check2 = self.map_shapely.intersection(L2)
+        if (check1.is_empty |   check2.is_empty):
+            return 0
+        else:
+            return 1
+
 
 
     def is_neighbour(self, curr_loc, target_loc):
@@ -179,10 +155,10 @@ class Player:
         #is reachable
         if (np.linalg.norm(current_point - target_point) < max_dist):
             #is safe to land
-            #if (self.is_landing_pt_safe(10,self.map, curr_loc, required_dist, angle )):
-            return 1
-            #else:
-                #return 0
+            if (self.is_safe(required_dist,angle,Point2D(curr_loc))):
+                return 1
+            else:
+                return 0
         else:
             return 0
 
@@ -192,6 +168,9 @@ class Player:
             return [self.target]
         neighbours = []
         for center in self.centers:
+    
+            if center.equals(Point2D(point)):
+                continue
             if self.is_neighbour(point, center):
                 neighbours.append( tuple(center))
         return neighbours
@@ -249,6 +228,8 @@ class Player:
             self.segmentize_map(golf_map)
             self.target = tuple(target)
             self.map = golf_map
+            shape_map = golf_map.vertices 
+            self.map_shapely = Polygon(shape_map)
 
         next_point = self.aStar(curr_loc, target )
 
