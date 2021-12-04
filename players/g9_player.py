@@ -23,7 +23,7 @@ class Player:
         self.cell_width = 1
         
     def get_landing_point(self, curr_loc: sympy.geometry.Point2D, distance: float, angle: float):
-    	"""
+        """
     	    Args:
     	        curr_loc (sympy.geometry.Point2D): current location
     	        distance (float): The distance to next potential landing point
@@ -31,7 +31,7 @@ class Player:
     	    Returns:
     	        the potential landing point as a sympy.Point2D object
     	"""
-    	return sympy.Point2D(curr_loc.x + distance * sympy.cos(angle), curr_loc.y + distance * sympy.sin(angle))
+        return sympy.Point2D(curr_loc.x + distance * sympy.cos(angle), curr_loc.y + distance * sympy.sin(angle))
 
     
     def get_center(self, r: int, c: int):
@@ -60,6 +60,31 @@ class Player:
         rows = int(np.ceil(height / self.cell_width))
         self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy + self.cell_width / 2)
         self.dmap = np.zeros((rows, cols), dtype=np.int8)
+        self.pmap = np.zeros((rows, cols), dtype=np.int8)
+
+        for row in range(rows):
+            for col in range(cols):
+                corners = self.get_corners(row, col)
+                water = 0
+                land = 0
+                for point in corners:
+                    if self.quick_map.contains(point):
+                        land += 1
+                    else:
+                        water += 1
+
+                if land == 4:
+                    # if all four points on land, then set dmap to 1
+                    self.dmap[row, col] = 1
+                    self.pmap[row, col] = -1
+                elif water == 4:
+                    # if all four points on water, then set dmap to 0
+                    self.dmap[row, col] = 0
+                    self.pmap[row, col] = -1
+                else:
+                    # in else ==> some points on land, some in water ==> we are on an edge cell
+                    self.pmap[row, col] = 0
+                    self.dmap[row, col] = 0
     
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
@@ -82,7 +107,6 @@ class Player:
         # Testing
         count = 0
         # .bounds function can get (minx, miny, maxx, maxy) tuple (float values) that bounds the object
-        self.quick_map = shapely.geometry.Polygon([(p.x,p.y) for p in golf_map.vertices])
    
         # Returning (0,0) for testing
         return (0,0)
