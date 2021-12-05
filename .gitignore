@@ -6,8 +6,6 @@ __pycache__/
 # C extensions
 *.so
 
-#polygolfvenv/
-
 # Distribution / packaging
 .Python
 build/

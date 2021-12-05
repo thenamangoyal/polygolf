@@ -15,6 +15,17 @@ class Player:
         self.skill = skill
         self.rng = rng
         self.logger = logger
+        
+    def get_landing_point(self, curr_loc: sympy.geometry.Point2D, distance: float, angle: float):
+    	"""
+    	    Args:
+    	        curr_loc (sympy.geometry.Point2D): current location
+    	        distance (float): The distance to next potential landing point
+    	        angle (float): The angle coordinate to the next potential landing point
+    	    Returns:
+    	        the potential landing point as a sympy.Point2D object
+    	"""
+    	return sympy.Point2D(curr_loc.x + distance * sympy.cos(angle), curr_loc.y + distance * sympy.sin(angle))
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
@@ -31,10 +42,41 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
+        print('ROAR')
         required_dist = curr_loc.distance(target)
         roll_factor = 1.1
         if required_dist < 20:
             roll_factor  = 1.0
         distance = sympy.Min(200+self.skill, required_dist/roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+        
+        # The potential landing point
+        landing_point = self.get_landing_point(curr_loc, distance, angle)
+        delta_angle = 5 * sympy.pi / 180
+        
+        
+        # if we're landing in water, then try different angles until we land on grass.
+        if golf_map.encloses(landing_point) == False:
+            potential_angle = delta_angle
+            while(potential_angle <= sympy.pi):
+                # Check in one direction
+                if golf_map.encloses(self.get_landing_point(curr_loc, distance, angle + potential_angle)) == True:
+                    angle = angle + potential_angle
+                    break
+                # Check in the other direction
+                if golf_map.encloses(self.get_landing_point(curr_loc, distance, angle - potential_angle)) == True:
+                    angle = angle - potential_angle
+                    break
+                    
+                potential_angle += delta_angle
+                print('In da loop ', potential_angle)
+            
+            # If we went through all angles and none of them work try to decrease the distance
+            if potential_angle > sympy.pi:
+                distance -= 10
+                angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+                while golf_map.encloses_point(self.get_landing_point(curr_loc, distance, angle)) == False:
+                    distance -= 10
+
+        print('Turn is finished')            
         return (distance, angle)

@@ -1,11 +1,26 @@
 import time
+
 import numpy as np
 import sympy
 import logging
 from typing import Tuple
 import constants
+
 from shapely import geometry
 import pdb
+
+import shapely.geometry
+
+
+def get_distance(point1, point2):
+    return pow(point1.x - point2.x, 2) + pow(point1.y - point2.y, 2)
+
+
+class Point:
+    def __init__(self, x, y):
+        self.x = float(x)
+        self.y = float(y)
+
 
 
 class Player:
@@ -22,11 +37,13 @@ class Player:
         self.logger = logger
         # TODO: define the risk rate, which means we can only take risks at 10%
         self.risk = 0.1
-        self.simulate_times = 10
+        self.simulate_times = 100
         self.tolerant_times = self.simulate_times * self.risk
         self.remember_middle_points = []
 
         self.turn = 0
+        self.shapely_golf_map = None
+
 
     def water_boolean(self, poly, grid_points):
         water_grid = []
@@ -149,6 +166,7 @@ class Player:
             #bfs
 
 
+
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
              curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D,
              prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
@@ -166,9 +184,12 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        print("test")
+
+
         if self.turn == 0:
             a = self.make_grid(golf_map,target,curr_loc, prev_loc)
+            self.shapely_golf_map = shapely.geometry.polygon.Polygon(golf_map.vertices)
+
 
         self.turn += 1
         # 1. always try greedy first
@@ -274,7 +295,7 @@ class Player:
         self.logger.info(str(self.turn) + "risky!!! select closest middle point to go")
         return (desire_distance, desire_angle)
 
-    def simulate_once(self, distance, angle, curr_loc, golf_map):
+    def simulate_shapely_once(self, distance, angle, curr_loc, golf_map):
         actual_distance = self.rng.normal(distance, distance / self.skill)
         actual_angle = self.rng.normal(angle, 1 / (2 * self.skill))
 
@@ -282,16 +303,56 @@ class Player:
         # final_point means the final stopped point, it is not equal
         if distance < constants.min_putter_dist:
             landing_point = curr_loc
-            final_point = sympy.Point2D(curr_loc.x + actual_distance * sympy.cos(actual_angle),
-                                        curr_loc.y + actual_distance * sympy.sin(actual_angle))
+            final_point = shapely.geometry.Point(curr_loc.x + actual_distance * np.cos(actual_angle),
+                                                 curr_loc.y + actual_distance * np.sin(actual_angle))
 
         else:
-            landing_point = sympy.Point2D(curr_loc.x + actual_distance * sympy.cos(actual_angle),
-                                          curr_loc.y + actual_distance * sympy.sin(actual_angle))
-            final_point = sympy.Point2D(
-                curr_loc.x + (1. + constants.extra_roll) * actual_distance * sympy.cos(actual_angle),
-                curr_loc.y + (1. + constants.extra_roll) * actual_distance * sympy.sin(actual_angle))
+            landing_point = shapely.geometry.Point(curr_loc.x + actual_distance * np.cos(actual_angle),
+                                                   curr_loc.y + actual_distance * np.sin(actual_angle))
+            final_point = shapely.geometry.Point(
+                curr_loc.x + (1. + constants.extra_roll) * actual_distance * np.cos(actual_angle),
+                curr_loc.y + (1. + constants.extra_roll) * actual_distance * np.sin(actual_angle))
 
-        segment_land = sympy.geometry.Segment2D(landing_point, final_point)
-        return golf_map.encloses(segment_land), final_point
+        is_inside = golf_map.contains(landing_point) and golf_map.contains(final_point)
+
+        return is_inside, final_point
+
+    def get_points_inside_circle(self, points_score, curr_loc, radius, target):
+        circle_points = dict()
+        max_dist = radius ** 2
+
+        for points in points_score.keys():
+            if get_distance(curr_loc, points) <= max_dist:
+                circle_points[points] = points_score[points]
+
+        sorted_points_score = dict(sorted(circle_points.items(), key=lambda x: x[1]))
+        smallest_score = min(sorted_points_score.values())
+        smallest_score_points = dict()
+        for points, value in sorted_points_score.items():
+            if value == smallest_score:
+                smallest_score_points[points] = get_distance(target, points)
+
+        closest2target_points = dict(sorted(smallest_score_points.items(), key=lambda x:x[1]))
+        safe_point = None
+        unsafe_points2score = dict()
+        for point in closest2target_points.keys():
+            succ_times = 0
+            for _ in range(self.simulate_times):
+                angle = sympy.atan2(point.y - curr_loc.y, point.x - curr_loc.x)
+                is_succ, _ = self.simulate_shapely_once(get_distance(curr_loc, point), angle, curr_loc, self.shapely_golf_map)
+                succ_times += is_succ
+
+            if succ_times / self.simulate_times >= 1 - self.risk:
+                safe_point = point
+                break
+
+            unsafe_points2score[point] = succ_times
+
+        if safe_point is None:
+            unsafe_points = sorted(unsafe_points2score.items(), key=lambda x: -x[1])
+            safe_point = unsafe_points[0][0]
+
+        desire_distance = get_distance(curr_loc, safe_point)
+        desire_angle = sympy.atan2(safe_point.y - curr_loc.y, safe_point.x - curr_loc.x)
+        return (desire_distance, desire_angle)
 
