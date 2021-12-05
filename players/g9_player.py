@@ -4,6 +4,8 @@ import logging
 from typing import Tuple
 import shapely
 import random
+from matplotlib import pyplot as plt
+from collections import deque
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -21,6 +23,8 @@ class Player:
         self.dmap = None
         self.pmap = None
         self.cell_width = 1
+        self.rows = None
+        self.cols = None
         
     def get_landing_point(self, curr_loc: sympy.geometry.Point2D, distance: float, angle: float):
         """
@@ -35,9 +39,15 @@ class Player:
 
     
     def get_center(self, r: int, c: int):
-        x = self.zero_center.x + r * self.cell_width
-        y = self.zero_center.y + c * self.cell_width
+        x = self.zero_center.x + c * self.cell_width
+        y = self.zero_center.y - r * self.cell_width
         return shapely.geometry.Point(x, y)
+
+    def get_row_col(self, x, y): #will return row, col closest to point (if within dmap)
+        c = round((x - self.zero_center.x)/self.cell_width)
+        r = round((y - self.zero_center.y)/self.cell_width)
+
+        return r, c
 
     def get_corners(self, r: int, c: int):
         center = self.get_center(r,c)
@@ -49,27 +59,85 @@ class Player:
         lower_left = shapely.geometry.Point(x - offset, y - offset)
         lower_right = shapely.geometry.Point(x + offset, y - offset)
         return [upper_left, upper_right, lower_left, lower_right]
+
+    def in_bounds(self, row, col):
+        if row >= 0 and col >=0 and row < self.rows and col < self.cols:
+            return True
+        return False
+
+    def get_neighbors(self, row, col):
+        neighbors_list = []
+        for i in range(-1,2):
+            for j in range(-1,2):
+                if i == 0 and j == 0:
+                    continue
+                neighborRow = row + i
+                neighborCol = col + j
+
+                if self.in_bounds(neighborRow, neighborCol):
+                    neighbors_list.append((neighborRow, neighborCol))
+
+        return neighbors_list
+
+
+
+    def brushfire(self, q):
+        print("starting brushfire")
+        while(len(q) != 0):
+            row, col, dist, waterPoint = q.popleft()
+
+            neighbors_list = self.get_neighbors(row, col)
+            for nRow, nCol in neighbors_list:
+                if self.dmap[nRow][nCol] == 1: #is on land
+                    nCenter = self.get_center(nRow, nCol)
+                    ndist = nCenter.distance(waterPoint) #distance from neighbor to water
+                    pValue = self.pmap[nRow, nCol]
+                    if (pValue == -1) or (pValue > ndist): #either uninitialized or current distance is smaller
+                        self.pmap[nRow, nCol] = ndist
+                        q.append((nRow, nCol, ndist, waterPoint))
+
+        r, c = self.get_row_col(50, 350)
+        print(self.pmap[r,c])
+        r, c = self.get_row_col(55, 350)
+        print(self.pmap[r,c])
+
+
+
     
     def precompute(self):
         minx, miny, maxx, maxy = self.quick_map.bounds
         self.minx = minx
         self.miny = miny
+        print(minx)
+        print(maxx)
+        print(miny)
+        print(maxy)
+
+        testpt = shapely.geometry.Point(50,160)
+        print(self.quick_map.contains(testpt))
+
         width = maxx - minx
         height = maxy - miny
-        cols = int(np.ceil(width / self.cell_width))
-        rows = int(np.ceil(height / self.cell_width))
-        self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy + self.cell_width / 2)
-        self.dmap = np.zeros((rows, cols), dtype=np.int8)
-        self.pmap = np.zeros((rows, cols), dtype=np.int8)
+        self.cols = int(np.ceil(width / self.cell_width))
+        self.rows = int(np.ceil(height / self.cell_width))
+        self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy - self.cell_width / 2)
 
-        for row in range(rows):
-            for col in range(cols):
+        print(self.zero_center)
+
+        self.dmap = np.zeros((self.rows, self.cols), dtype=np.int8)
+        self.pmap = np.zeros((self.rows, self.cols), dtype=np.int8)
+
+        q = deque() #used for brushfire
+
+        for row in range(self.rows):
+            for col in range(self.cols):
                 corners = self.get_corners(row, col)
                 water = 0
                 land = 0
                 for point in corners:
                     if self.quick_map.contains(point):
                         land += 1
+                        #print("inside")
                     else:
                         water += 1
 
@@ -77,14 +145,21 @@ class Player:
                     # if all four points on land, then set dmap to 1
                     self.dmap[row, col] = 1
                     self.pmap[row, col] = -1
+
                 elif water == 4:
                     # if all four points on water, then set dmap to 0
                     self.dmap[row, col] = 0
                     self.pmap[row, col] = -1
+
                 else:
                     # in else ==> some points on land, some in water ==> we are on an edge cell
                     self.pmap[row, col] = 0
                     self.dmap[row, col] = 0
+                    q.append((row,col,0, self.get_center(row, col))) #place edge in queue
+
+        self.brushfire(q)
+
+
     
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
@@ -104,6 +179,7 @@ class Player:
         if not self.quick_map:
             self.quick_map = shapely.geometry.Polygon([(p.x,p.y) for p in golf_map.vertices])
             self.precompute()
+
         # Testing
         count = 0
         # .bounds function can get (minx, miny, maxx, maxy) tuple (float values) that bounds the object
