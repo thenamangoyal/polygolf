@@ -26,6 +26,8 @@ class Player:
         self.in_polygon = None
         self.origin = None
 
+        self.shapely_polygon = None
+
         self.n_distances = 20
         self.n_angles = 40
 
@@ -49,7 +51,7 @@ class Player:
 
         # init golf map polygon
         if score == 1:
-            shapely_polygon = Polygon([(p.x,p.y) for p in golf_map.vertices])
+            self.shapely_polygon = Polygon([(p.x,p.y) for p in golf_map.vertices])
 
             x,y = list(zip(*golf_map.vertices))
             self.origin = (int(min(x)),int(min(y)))
@@ -57,9 +59,12 @@ class Player:
 
             for i in range(len(self.in_polygon)):
                 for j in range(len(self.in_polygon[0])):
-                    px = self.origin[0]+i
-                    py = self.origin[1]+j
-                    self.in_polygon[i][j] = shapely_polygon.contains(Point(px, py))     
+                    px = int(self.origin[0]+i)
+                    py = int(self.origin[1]+j)
+                    self.in_polygon[i][j] = self.shapely_polygon.contains(Point(px, py))   
+
+            nodes = self.compute_graph_nodes(golf_map)
+  
                     
         np.copyto(self.np_curr_loc, curr_loc.coordinates, casting='unsafe')
         np.copyto(self.np_target, target.coordinates, casting='unsafe')
@@ -159,7 +164,7 @@ class Player:
         return n_valid / n_tries
 
     # Approx line-seg polygon intersection by checking points along the segment are inside polygon
-    def line_segment_in_polygon(self, p1, p2, n_points_on_seg):
+    def line_segment_in_polygon(self, p1, p2, n_points_on_seg, exact=False):
         direction = np.empty(2)
         temp = np.empty(2)
         p = np.empty(2)
@@ -168,10 +173,49 @@ class Player:
         for i in np.linspace(0, 1, num=n_points_on_seg):
             np.multiply(i, direction, out=temp)
             np.add(p1, temp, out=p)
-            if not self.point_in_polygon(p):
+            if (exact and not self.shapely_polygon.contains(Point(p[0], p[1]))) or (not exact and not self.point_in_polygon(p)):
                 return False
         return True
 
     def point_in_polygon(self, p):
-        x,y = int(p[0])-self.origin[0],int(p[1])-self.origin[1]
+        x,y = int(p[0]-self.origin[0]),int(p[1]-self.origin[1])
         return 0<=x<len(self.in_polygon) and 0<=y<len(self.in_polygon[0]) and self.in_polygon[x][y]
+
+    def compute_graph_nodes(self, golf_map: sympy.Polygon):
+        '''
+        returns a list of nodes. Each node is a tuple (x,y).
+        '''
+
+        nodes = [(p.x,p.y) for p in golf_map.vertices]
+
+        a = np.empty(2)
+        b = np.empty(2)
+
+        n_vert = len(golf_map.vertices)
+
+        for i in range(n_vert):
+            j = (i+1) % n_vert
+
+            np.copyto(a,golf_map.vertices[i], casting='unsafe')
+            np.copyto(b,golf_map.vertices[j], casting='unsafe')
+
+            # line segment midpoint
+            nodes.append(tuple((a+b)/2))
+
+            # points along diagonals
+            for j in range(i+2, n_vert):
+
+                np.copyto(b,golf_map.vertices[j], casting='unsafe')
+
+                # not sure if endpoints will mess things up so ignore them 
+                t = 0.975
+                p1 = t*a + (1-t)*b
+                p2 = (1-t)*a + t*b
+
+                if self.line_segment_in_polygon(p1, p2, n_points_on_seg=10, exact=True):
+                    n_points_on_diag = 2
+                    for k in range(1,n_points_on_diag+1):
+                        t = k / (n_points_on_diag+1)
+                        p = (1-t)*a + t*b
+                        nodes.append(tuple(p))
+        return nodes
