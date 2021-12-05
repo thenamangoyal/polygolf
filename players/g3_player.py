@@ -6,12 +6,13 @@ from typing import Tuple, List, Dict, Optional
 
 import numpy as np
 import sympy
-from numba import jit
+from numba import njit
 from scipy.spatial import KDTree
 
 import constants
 
 SAMPLE_LIMIT = 1000  # approx. count of sampled points
+MINIMUM_SAMPLE_DISTANCE = 20  # minimum distance between sampled points
 
 RANDOM_COUNT = 60  # repeat times of sampling normal distributions
 PRUNING_FACTOR = 0.2
@@ -45,24 +46,6 @@ class PointF:
         return np.array([self.x, self.y])
 
 
-def sgn(x: float) -> int:
-    if math.fabs(x) < EPS:
-        return 0
-    return 1 if x > 0 else -1
-
-
-def dot(a: PointF, b: PointF) -> float:
-    return a.x * b.x + a.y * b.y
-
-
-def det(a: PointF, b: PointF) -> float:
-    return a.x * b.y - a.y * b.x
-
-
-def cross(s: PointF, t: PointF, o: PointF = PointF(0, 0)) -> float:
-    return det(s - o, t - o)
-
-
 def to_numeric_point(p: sympy.Point2D) -> PointF:
     return PointF(p.x, p.y)
 
@@ -75,11 +58,24 @@ def dist(p1: PointF, p2: PointF = PointF(0, 0)) -> float:
     return math.sqrt(dist2(p1, p2))
 
 
-def dist_to_line(p: PointF, s: PointF, t: PointF) -> float:
-    return math.fabs(cross(s, t, p)) / dist(s - t)
-
-
 def dist_to_seg(p: PointF, s: PointF, t: PointF) -> float:
+    def sgn(x: float) -> int:
+        if math.fabs(x) < EPS:
+            return 0
+        return 1 if x > 0 else -1
+
+    def dot(a: PointF, b: PointF) -> float:
+        return a.x * b.x + a.y * b.y
+
+    def det(a: PointF, b: PointF) -> float:
+        return a.x * b.y - a.y * b.x
+
+    def cross(s: PointF, t: PointF, o: PointF = PointF(0, 0)) -> float:
+        return det(s - o, t - o)
+
+    def dist_to_line(p: PointF, s: PointF, t: PointF) -> float:
+        return math.fabs(cross(s, t, p)) / dist(s - t)
+
     if s == t:
         return dist(p, s)
     vs = p - s
@@ -91,7 +87,7 @@ def dist_to_seg(p: PointF, s: PointF, t: PointF) -> float:
     return dist_to_line(p, s, t)
 
 
-@jit(nopython=True)
+@njit
 def point_inside_polygon(poly: np.array, px: float, py: float) -> bool:
     # http://paulbourke.net/geometry/polygonmesh/#insidepoly
     # https://stackoverflow.com/questions/36399381/whats-the-fastest-way-of-checking-if-a-point-is-inside-a-polygon-in-python
@@ -108,15 +104,15 @@ def point_inside_polygon(poly: np.array, px: float, py: float) -> bool:
     return inside
 
 
-@jit(nopython=True)
-def sgn_cross(o: np.array, b: np.array, c: np.array) -> int:
-    t = (b[0] - o[0]) * (c[1] - o[1]) - (b[1] - o[1]) * (c[0] - o[0])
+@njit
+def sgn_cross(o: np.array, a: np.array, b: np.array) -> int:
+    t = (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
     if np.fabs(t) < EPS:
         return 0
     return 1 if t > 0 else -1
 
 
-@jit(nopython=True)
+@njit
 def segment_polygon_intersection(poly: np.array, b1: np.array, b2: np.array) -> bool:
     n = len(poly)
     for i in range(n):
@@ -141,7 +137,7 @@ def sample_points_inside_polygon(poly: sympy.Polygon, poly_f: np.array) -> Tuple
                     l.append(p)
         return l
 
-    dist = 20
+    dist = MINIMUM_SAMPLE_DISTANCE
     while True:
         s = sample_by_dist(dist)
         if len(s) > SAMPLE_LIMIT:
@@ -218,7 +214,7 @@ class Player:
 
         self.logger.debug(f"max score: {max(self.scores.values())}")
 
-    def score(self, p: PointF):
+    def score(self, p: PointF) -> float:
         # return the score of nearest point
         d, idx = self.kdt.query([p.x, p.y], k=1)
         if d > self.sample_dist:
