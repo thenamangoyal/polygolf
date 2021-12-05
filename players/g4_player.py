@@ -23,7 +23,6 @@ class Point:
         self.y = float(y)
 
 
-
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
         """Initialise the player with given skill.
@@ -46,76 +45,66 @@ class Player:
         self.shapely_golf_map = None
         self.point_dict = defaultdict(int)
 
-
     def water_boolean(self, poly, grid_points):
         water_grid = []
-        
-        for i,row in enumerate(grid_points): 
+
+        for i, row in enumerate(grid_points):
             water_grid.append([])
-            for j,point in enumerate(row):
-                
+            for j, point in enumerate(row):
                 thebool = poly.contains(point)
-                
+
                 water_grid[i].append(thebool)
-            
+
         return np.array(water_grid)
 
+    def make_grid(self, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
+                  curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D):
 
-
-    def make_grid(self, golf_map: sympy.Polygon,target: sympy.geometry.Point2D,
-        curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D):
-
-        poly=geometry.Polygon([p.x, p.y] for p in golf_map.vertices)
+        poly = geometry.Polygon([p.x, p.y] for p in golf_map.vertices)
         target_shapely = geometry.Point(target[0], target[1])
 
         (xmin, ymin, xmax, ymax) = golf_map.bounds
         list_of_lists = []
-        list_of_distances=[]
-        
+        list_of_distances = []
+
         queue = []
         dimension = 10
         allowed_distance = constants.max_dist + self.skill
         threshold = 20.0
-        amt=1
-        grid_of_scores = np.array(np.ones((dimension,dimension))*100)
-        
-        
+        amt = 1
+        grid_of_scores = np.array(np.ones((dimension, dimension)) * 100)
+
         xmin = float(xmin)
         ymin = float(ymin)
         xmax = float(xmax)
         ymax = float(ymax)
-        
-        
-        xcoords,ycoords = np.meshgrid(np.linspace(xmin,xmax, dimension),np.linspace(ymin,ymax, dimension))
+
+        xcoords, ycoords = np.meshgrid(np.linspace(xmin, xmax, dimension), np.linspace(ymin, ymax, dimension))
 
         for x_index in range(len(xcoords)):
             list_of_lists.append([])
             list_of_distances.append([])
             for y_index in range(len(ycoords)):
-                #considered_point = sympy.geometry.Point2D(xcoords[y_index,x_index],ycoords[y_index,x_index])
-                considered_point = geometry.Point(xcoords[y_index,x_index],ycoords[y_index,x_index])
+                # considered_point = sympy.geometry.Point2D(xcoords[y_index,x_index],ycoords[y_index,x_index])
+                considered_point = geometry.Point(xcoords[y_index, x_index], ycoords[y_index, x_index])
                 list_of_lists[x_index].append(considered_point)
-
 
         grid_of_scores = self.real_bfs(poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores)
 
-
         return grid_of_scores, list_of_lists
-
 
     def real_bfs(self, poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores):
         queue = []
-        water_grid = self.water_boolean(poly, list_of_lists) # True if on LAND
+        water_grid = self.water_boolean(poly, list_of_lists)  # True if on LAND
         for x_index in range(len(list_of_lists)):
-            for y_index in range(len(list_of_lists[0])): 
+            for y_index in range(len(list_of_lists[0])):
                 thedistance = target_shapely.distance(list_of_lists[x_index][y_index])
                 if (thedistance < allowed_distance) and water_grid[x_index][y_index]:
-                    queue.append((x_index,y_index))
+                    queue.append((x_index, y_index))
                     grid_of_scores[x_index][y_index] = 1
 
+        while (len(queue) != 0):
 
-        while(len(queue) != 0):
-            
             elem = queue.pop()
             # get all points that are < distance from elem
             elem_score = grid_of_scores[elem[0]][elem[1]]
@@ -125,17 +114,14 @@ class Player:
                     elem_point = list_of_lists[elem[0]][elem[1]]
                     distance = elem_point.distance(list_of_lists[x_index][y_index])
                     if distance < allowed_distance:
-                        points_to_consider.append((x_index,y_index))
+                        points_to_consider.append((x_index, y_index))
             for point in points_to_consider:
-                if water_grid[point[0],point[1]]:
-                    (x_index,y_index) = point
+                if water_grid[point[0], point[1]]:
+                    (x_index, y_index) = point
                     if elem_score + 1 < grid_of_scores[x_index][y_index]:
-
                         grid_of_scores[x_index][y_index] = elem_score + 1
                         queue.append(point)
         return grid_of_scores
-            
-
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
              curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D,
@@ -155,18 +141,17 @@ class Player:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
 
-        
         if self.turn == 0:
-            grid_scores, point_map = self.make_grid(golf_map,target,curr_loc, prev_loc)           
+            grid_scores, point_map = self.make_grid(golf_map, target, curr_loc, prev_loc)
             for x_index in range(len(point_map)):
                 for y_index in range(len(point_map[0])):
                     if int(grid_scores[x_index][y_index]) != 100:
-                        self.point_dict[Point(point_map[x_index][y_index].x,point_map[x_index][y_index].y)]=int(grid_scores[x_index][y_index])
+                        self.point_dict[Point(point_map[x_index][y_index].x, point_map[x_index][y_index].y)] = int(
+                            grid_scores[x_index][y_index])
             self.shapely_golf_map = shapely.geometry.polygon.Polygon(golf_map.vertices)
 
-
         self.turn += 1
-        
+
         # 1. always try greedy first
         required_dist = curr_loc.distance(target)
         roll_factor = 1. + constants.extra_roll
@@ -317,7 +302,6 @@ class Player:
 
         return is_inside, final_point
 
-
     # points_score --> dictionary of (point, score)
     def get_points_inside_circle(self, points_score, curr_loc, radius, target):
         circle_points = dict()
@@ -334,14 +318,15 @@ class Player:
             if value == smallest_score:
                 smallest_score_points[points] = get_distance(target, points)
 
-        closest2target_points = dict(sorted(smallest_score_points.items(), key=lambda x:x[1]))
+        closest2target_points = dict(sorted(smallest_score_points.items(), key=lambda x: x[1]))
         safe_point = None
         unsafe_points2score = dict()
         for point in closest2target_points.keys():
             succ_times = 0
             for _ in range(self.simulate_times):
                 angle = sympy.atan2(point.y - curr_loc.y, point.x - curr_loc.x)
-                is_succ, _ = self.simulate_shapely_once(get_distance(curr_loc, point), angle, curr_loc, self.shapely_golf_map)
+                is_succ, _ = self.simulate_shapely_once(get_distance(curr_loc, point), angle, curr_loc,
+                                                        self.shapely_golf_map)
                 succ_times += is_succ
 
             if succ_times / self.simulate_times >= 1 - self.risk:
@@ -357,4 +342,3 @@ class Player:
         desire_distance = get_distance(curr_loc, safe_point)
         desire_angle = sympy.atan2(safe_point.y - curr_loc.y, safe_point.x - curr_loc.x)
         return (desire_distance, desire_angle)
-
