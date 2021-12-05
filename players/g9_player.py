@@ -26,8 +26,11 @@ class Player:
         self.cell_width = 1
         self.rows = None
         self.cols = None
+        self.max_distance = 200 + skill
+        self.distances = [200 + skill, (200 + skill) / 2, (200 + skill) / 4]
+        self.angles = [0, np.pi / 6, np.pi / 4, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 3 * np.pi / 4, 5 * np.pi / 6, np.pi, 7 * np.pi / 6, 5 * np.pi / 4, 4 * np.pi / 3, 3 * np.pi / 2, 5 * np.pi / 3, 7 * np.pi / 4, 11 * np.pi / 6]
         
-    def get_landing_point(self, curr_loc: sympy.geometry.Point2D, distance: float, angle: float):
+    def get_landing_point(self, curr_loc: shapely.geometry.Point, distance: float, angle: float):
         """
     	    Args:
     	        curr_loc (sympy.geometry.Point2D): current location
@@ -36,7 +39,7 @@ class Player:
     	    Returns:
     	        the potential landing point as a sympy.Point2D object
     	"""
-        return sympy.Point2D(curr_loc.x + distance * sympy.cos(angle), curr_loc.y + distance * sympy.sin(angle))
+        return shapely.geometry.Point(curr_loc.x + distance * np.cos(angle), curr_loc.y + distance * np.sin(angle))
 
     
     def get_center(self, r: int, c: int):
@@ -177,6 +180,23 @@ class Player:
 
         self.brushfire(q)
 
+
+    # Generate potential branches for the A* searching algorithm
+    def generate_branches(self, points):
+        pt = points[-1]
+        li = []
+        for distance in self.distances:
+            for angle in self.angles:
+                new_point = self.get_landing_point(pt, distance, angle)
+                valid = True
+                for i in range(len(points) - 1):
+                    if pt.distance(new_point) < (self.max_distance / 2):
+                        valid = False
+                        break
+                if valid:
+                    li.append(new_point)
+
+        return new_point
 
     
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
