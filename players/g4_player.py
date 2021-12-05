@@ -60,7 +60,7 @@ class Player:
         allowed_distance = 100
         threshold = 20.0
         amt=1
-        grid_of_scores = np.array(np.ones((dimension,dimension))*100000)
+        grid_of_scores = np.array(np.ones((dimension,dimension))*100)
         
         
         xmin = float(xmin)
@@ -82,7 +82,10 @@ class Player:
                 #thedistance = curr_loc.distance(considered_point)
                 #list_of_distances[x_index].append(thedistance)
                 #print(float(considered_point[0]),float(considered_point[1]), float(curr_loc[0]), float(curr_loc[1]))
-        print("test1")
+        print("hi")
+        self.test()
+        self.real_bfs(poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores)
+        """print("test1")
         water_grid = self.water_boolean(poly, list_of_lists) # True if on LAND
         for x_index in range(len(list_of_lists)):
             for y_index in range(len(list_of_lists[0])): 
@@ -92,7 +95,9 @@ class Player:
                 print(water_grid[x_index][y_index] and thedistance < allowed_distance)
                 if (thedistance < allowed_distance) and water_grid[x_index][y_index]:
                     queue.append((x_index,y_index))
-                    print(queue, "what")
+                    print(queue, "what")"""
+
+
         print(queue)
         print("HELL")
         print(water_grid)
@@ -101,35 +106,48 @@ class Player:
         if thedistance < threshold:
             grid_of_scores[x_index,y_index] = amt
         return "hi"
+    def test(self):
+        print("um")
 
-    """graph = {
-  '5' : ['3','7'],
-  '3' : ['2', '4'],
-  '7' : ['8'],
-  '2' : [],
-  '4' : ['8'],
-  '8' : []
-}
+    def real_bfs(self, poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores):
+        queue = []
+        water_grid = self.water_boolean(poly, list_of_lists) # True if on LAND
+        for x_index in range(len(list_of_lists)):
+            for y_index in range(len(list_of_lists[0])): 
+                thedistance = target_shapely.distance(list_of_lists[x_index][y_index])
+                if (thedistance < allowed_distance) and water_grid[x_index][y_index]:
+                    queue.append((x_index,y_index))
+                    grid_of_scores[x_index][y_index] = 1
 
-visited = [] # List for visited nodes.
-queue = []     #Initialize a queue
+                    print(queue, "what")
+        print(grid_of_scores)
 
-def bfs(visited, graph, node): #function for BFS
-  visited.append(node)
-  queue.append(node)
+        while(len(queue) != 0):
+            
+            elem = queue.pop()
+            # get all points that are < distance from elem
+            elem_score = grid_of_scores[elem[0]][elem[1]]
+            points_to_consider = []
+            for x_index in range(len(list_of_lists)):
+                for y_index in range(len(list_of_lists[0])):
+                    elem_point = list_of_lists[elem[0]][elem[1]]
+                    distance = elem_point.distance(list_of_lists[x_index][y_index])
+                    if distance < allowed_distance:
+                        print("hi")
+                        points_to_consider.append((x_index,y_index))
+            for point in points_to_consider:
+                if water_grid[point[0],point[1]]:
+                    (x_index,y_index) = point
+                    if elem_score + 1 < grid_of_scores[x_index][y_index]:
 
-  while queue:          # Creating loop to visit each node
-    m = queue.pop(0) 
-    print (m, end = " ") 
+                        grid_of_scores[x_index][y_index] = elem_score + 1
+                        queue.append(point)
+            print(grid_of_scores)
+            
 
-    for neighbour in graph[m]:
-      if neighbour not in visited:
-        visited.append(neighbour)
-        queue.append(neighbour)
+                
+            #bfs
 
-# Driver Code
-print("Following is the Breadth-First Search")
-bfs(visited, graph, '5')    # function calling"""
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
              curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D,
@@ -276,3 +294,4 @@ bfs(visited, graph, '5')    # function calling"""
 
         segment_land = sympy.geometry.Segment2D(landing_point, final_point)
         return golf_map.encloses(segment_land), final_point
+
