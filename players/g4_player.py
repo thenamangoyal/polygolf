@@ -160,11 +160,7 @@ class Player:
             grid_scores, point_map = self.make_grid(golf_map,target,curr_loc, prev_loc)           
             for x_index in range(len(point_map)):
                 for y_index in range(len(point_map[0])):
-                    print(point_map[x_index][y_index])
-                    print(grid_scores[x_index][y_index])
-                    if grid_scores[x_index][y_index] != 100.0:
-                        #print(point_map[x_index][y_index], "here")
-                        #point_dict[(point_map[x_index][y_index].x,point_map[x_index][y_index].y)]=int(grid_scores[x_index][y_index])
+                    if int(grid_scores[x_index][y_index]) != 100:
                         self.point_dict[Point(point_map[x_index][y_index].x,point_map[x_index][y_index].y)]=int(grid_scores[x_index][y_index])
             self.shapely_golf_map = shapely.geometry.polygon.Polygon(golf_map.vertices)
 
@@ -179,7 +175,30 @@ class Player:
         distance = sympy.Min(constants.max_dist + self.skill, required_dist / roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
 
-        return self.get_points_inside_circle(self.point_dict, curr_loc, distance, target)
+        if required_dist >= constants.max_dist + self.skill:
+            self.logger.info(str(self.turn) + "branch 1 sample points to go")
+            return self.get_points_inside_circle(self.point_dict, curr_loc, distance, target)
+        else:
+            is_greedy = True
+            failed_times = 0
+            # simulate the actual situation to ensure fail times will not be larger than self.tolerant_times
+            for _ in range(self.simulate_times):
+                is_succ, _= self.simulate_shapely_once(distance, angle, curr_loc, self.shapely_golf_map)
+                if not is_succ:
+                    failed_times += 1
+                    if failed_times > self.tolerant_times:
+                        is_greedy = False
+                        break
+            if is_greedy:
+                self.logger.info(str(self.turn) + "select greedy strategy to go")
+                return (distance, angle)
+
+            if distance < constants.min_putter_dist:
+                self.logger.info(str(self.turn) + "putter")
+                return (distance, angle)
+
+            self.logger.info(str(self.turn) + "branch 2 sample points to go")
+            return self.get_points_inside_circle(self.point_dict, curr_loc, distance, target)
 
         is_greedy = True
         failed_times = 0
@@ -283,7 +302,7 @@ class Player:
         # landing_point means the land point(the golf can skip for a little distance),
         # final_point means the final stopped point, it is not equal
         if distance < constants.min_putter_dist:
-            landing_point = curr_loc
+            landing_point = shapely.geometry.Point(curr_loc.x, curr_loc.y)
             final_point = shapely.geometry.Point(curr_loc.x + actual_distance * np.cos(actual_angle),
                                                  curr_loc.y + actual_distance * np.sin(actual_angle))
 
