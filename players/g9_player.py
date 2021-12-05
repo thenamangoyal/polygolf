@@ -6,6 +6,7 @@ import shapely
 import random
 from matplotlib import pyplot as plt
 from collections import deque
+import math
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -101,7 +102,24 @@ class Player:
         r, c = self.get_row_col(55, 350)
         print(self.pmap[r,c])
 
+    def p_in_water(self,start, end):
+        d = start.distance(end)
+        sigma = d/self.skill
+        r, c = self.get_row_col(end.x, end.y)
+        dw = self.pmap(r, c) #distance to water for end point
+        alpha = dw/sigma #number of standard deviations to water
 
+        if alpha <= 1:
+            return 1 - (1.848*math.exp-(1/alpha))
+        elif alpha < 2:
+            return 1 - (0.68 + 0.27(1- alpha))
+        else:
+            return 0
+
+    def expected_strokes(self, start, end):
+        ratio = p_in_water(start,end):
+
+        return 1 + (ratio)/(1-ratio)
 
     
     def precompute(self):
