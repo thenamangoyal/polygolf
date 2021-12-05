@@ -8,12 +8,13 @@ import constants
 
 from shapely import geometry
 import pdb
-
+from collections import defaultdict
 import shapely.geometry
+import math
 
 
 def get_distance(point1, point2):
-    return pow(point1.x - point2.x, 2) + pow(point1.y - point2.y, 2)
+    return math.sqrt(pow(point1.x - point2.x, 2) + pow(point1.y - point2.y, 2))
 
 
 class Point:
@@ -43,6 +44,7 @@ class Player:
 
         self.turn = 0
         self.shapely_golf_map = None
+        self.point_dict = defaultdict(int)
 
 
     def water_boolean(self, poly, grid_points):
@@ -72,7 +74,7 @@ class Player:
         
         queue = []
         dimension = 10
-        allowed_distance = 100
+        allowed_distance = constants.max_dist + self.skill
         threshold = 20.0
         amt=1
         grid_of_scores = np.array(np.ones((dimension,dimension))*100)
@@ -98,7 +100,7 @@ class Player:
         grid_of_scores = self.real_bfs(poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores)
 
 
-        return grid_of_scores
+        return grid_of_scores, list_of_lists
 
 
     def real_bfs(self, poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores):
@@ -153,14 +155,22 @@ class Player:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
 
-
+        
         if self.turn == 0:
-            a = self.make_grid(golf_map,target,curr_loc, prev_loc)
-            print(a)
+            grid_scores, point_map = self.make_grid(golf_map,target,curr_loc, prev_loc)           
+            for x_index in range(len(point_map)):
+                for y_index in range(len(point_map[0])):
+                    print(point_map[x_index][y_index])
+                    print(grid_scores[x_index][y_index])
+                    if grid_scores[x_index][y_index] != 100.0:
+                        #print(point_map[x_index][y_index], "here")
+                        #point_dict[(point_map[x_index][y_index].x,point_map[x_index][y_index].y)]=int(grid_scores[x_index][y_index])
+                        self.point_dict[Point(point_map[x_index][y_index].x,point_map[x_index][y_index].y)]=int(grid_scores[x_index][y_index])
             self.shapely_golf_map = shapely.geometry.polygon.Polygon(golf_map.vertices)
 
 
         self.turn += 1
+        
         # 1. always try greedy first
         required_dist = curr_loc.distance(target)
         roll_factor = 1. + constants.extra_roll
@@ -168,6 +178,8 @@ class Player:
             roll_factor = 1.0
         distance = sympy.Min(constants.max_dist + self.skill, required_dist / roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+
+        return self.get_points_inside_circle(self.point_dict, curr_loc, distance, target)
 
         is_greedy = True
         failed_times = 0
@@ -286,9 +298,11 @@ class Player:
 
         return is_inside, final_point
 
+
+    # points_score --> dictionary of (point, score)
     def get_points_inside_circle(self, points_score, curr_loc, radius, target):
         circle_points = dict()
-        max_dist = radius ** 2
+        max_dist = radius
 
         for points in points_score.keys():
             if get_distance(curr_loc, points) <= max_dist:
