@@ -126,8 +126,8 @@ class Player:
         distance_2std = (d/self.skill)
         begin_line1 = (start_point.x + (d-distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d-distance_2std)*math.sin(angle -angle_2std ))
         begin_line2 = (start_point.x + (d-distance_2std)*math.cos(angle + angle_2std), start_point.y + (d-distance_2std)*math.sin(angle + angle_2std))
-        end_line1 = (start_point.x + (d+distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d+distance_2std)*math.sin(angle - angle_2std))
-        end_line2 = (start_point.x + (d+distance_2std)*math.cos(angle + angle_2std ), start_point.y + (d+distance_2std)*math.sin(angle + angle_2std))
+        end_line1 = (start_point.x + (d+(d*0.1)+distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d+(d*0.1)distance_2std)*math.sin(angle - angle_2std))
+        end_line2 = (start_point.x + (d+(d*0.1)+distance_2std)*math.cos(angle + angle_2std ), start_point.y + (d+(d*0.1)distance_2std)*math.sin(angle + angle_2std))
         L1 = LineString([Point(begin_line1), Point(end_line1)])
         L2 = LineString([Point(begin_line2), Point(end_line2)])
         check1 = L1.within(self.map_shapely)
@@ -236,6 +236,7 @@ class Player:
         angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
         #angle2  = math.degrees(angle)
         #a =  self.positionSafety( distance, angle2, curr_loc.evalf(), golf_map)
+
         self.turns = self.turns +1  
         print(next_point)
         return (required_dist, angle)
