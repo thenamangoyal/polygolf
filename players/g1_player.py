@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import constants
 import heapq
 
+
+
 class Cell:
     def __init__(self,point, target, actual_cost,previous ):
         self.point = point
@@ -107,6 +109,7 @@ class Player:
         return Polygon(segment_vertices)
 
     def positionSafety(self, d, angle, start_point):
+
         #CIRCLE of radiues = 2 standand deviations
         angle_2std = math.degrees(2*(1/self.skill))
         distance_2std = 2*(d/self.skill)
@@ -118,7 +121,8 @@ class Player:
         return (area_inside_the_polygon==1)
         
     def is_safe(self, d, angle, start_point):
-        angle_2std = ((1/(2*self.skill)))
+        #to do add confidence bounds
+        angle_2std = ((2/(self.skill)))
         distance_2std = (d/self.skill)
         begin_line1 = (start_point.x + (d-distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d-distance_2std)*math.sin(angle -angle_2std ))
         begin_line2 = (start_point.x + (d-distance_2std)*math.cos(angle + angle_2std), start_point.y + (d-distance_2std)*math.sin(angle + angle_2std))
