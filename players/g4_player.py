@@ -56,7 +56,6 @@ class Player:
                 
                 water_grid[i].append(thebool)
             
-        print(np.array(water_grid))
         return np.array(water_grid)
 
 
@@ -66,7 +65,6 @@ class Player:
 
         poly=geometry.Polygon([p.x, p.y] for p in golf_map.vertices)
         target_shapely = geometry.Point(target[0], target[1])
-        print("convert")
 
         (xmin, ymin, xmax, ymax) = golf_map.bounds
         list_of_lists = []
@@ -85,7 +83,6 @@ class Player:
         xmax = float(xmax)
         ymax = float(ymax)
         
-        print(xmin,xmax,ymin,ymax)
         
         xcoords,ycoords = np.meshgrid(np.linspace(xmin,xmax, dimension),np.linspace(ymin,ymax, dimension))
 
@@ -96,35 +93,13 @@ class Player:
                 #considered_point = sympy.geometry.Point2D(xcoords[y_index,x_index],ycoords[y_index,x_index])
                 considered_point = geometry.Point(xcoords[y_index,x_index],ycoords[y_index,x_index])
                 list_of_lists[x_index].append(considered_point)
-                #thedistance = curr_loc.distance(considered_point)
-                #list_of_distances[x_index].append(thedistance)
-                #print(float(considered_point[0]),float(considered_point[1]), float(curr_loc[0]), float(curr_loc[1]))
-        print("hi")
-        self.test()
-        self.real_bfs(poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores)
-        """print("test1")
-        water_grid = self.water_boolean(poly, list_of_lists) # True if on LAND
-        for x_index in range(len(list_of_lists)):
-            for y_index in range(len(list_of_lists[0])): 
-                thedistance = target_shapely.distance(list_of_lists[x_index][y_index])
-                print(thedistance)
-                print(allowed_distance)
-                print(water_grid[x_index][y_index] and thedistance < allowed_distance)
-                if (thedistance < allowed_distance) and water_grid[x_index][y_index]:
-                    queue.append((x_index,y_index))
-                    print(queue, "what")"""
 
 
-        print(queue)
-        print("HELL")
-        print(water_grid)
+        grid_of_scores = self.real_bfs(poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores)
 
-        """BFS stuff"""
-        if thedistance < threshold:
-            grid_of_scores[x_index,y_index] = amt
-        return "hi"
-    def test(self):
-        print("um")
+
+        return grid_of_scores
+
 
     def real_bfs(self, poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores):
         queue = []
@@ -136,8 +111,6 @@ class Player:
                     queue.append((x_index,y_index))
                     grid_of_scores[x_index][y_index] = 1
 
-                    print(queue, "what")
-        print(grid_of_scores)
 
         while(len(queue) != 0):
             
@@ -150,7 +123,6 @@ class Player:
                     elem_point = list_of_lists[elem[0]][elem[1]]
                     distance = elem_point.distance(list_of_lists[x_index][y_index])
                     if distance < allowed_distance:
-                        print("hi")
                         points_to_consider.append((x_index,y_index))
             for point in points_to_consider:
                 if water_grid[point[0],point[1]]:
@@ -159,12 +131,8 @@ class Player:
 
                         grid_of_scores[x_index][y_index] = elem_score + 1
                         queue.append(point)
-            print(grid_of_scores)
+        return grid_of_scores
             
-
-                
-            #bfs
-
 
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
@@ -188,6 +156,7 @@ class Player:
 
         if self.turn == 0:
             a = self.make_grid(golf_map,target,curr_loc, prev_loc)
+            print(a)
             self.shapely_golf_map = shapely.geometry.polygon.Polygon(golf_map.vertices)
 
 
