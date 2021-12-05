@@ -45,7 +45,6 @@ def splash_zone(distance: float, angle: float, conf: float, skill: int, current_
     if distance <= 20:
         scale = 1.0
     max_distance = distances[-1]*scale
-    points = []
     top_arc = spread_points(current_point, angles, max_distance, False)
 
     min_distance = distances[0]
@@ -206,7 +205,6 @@ class Player:
         while len(heap) > 0:
             next_sp = heapq.heappop(heap)
             next_p = next_sp.point
-            del best_cost[next_p]
 
             if next_p in visited:
                 continue
