@@ -20,10 +20,9 @@ class Player:
         self.rng = rng
         self.logger = logger
 
-        self.shapely_polygon = None
         self.np_curr_loc = np.empty(2)
         self.np_target = np.empty(2)
-        self.triangles = None
+
         self.in_polygon = None
         self.origin = None
 
@@ -31,8 +30,6 @@ class Player:
         self.n_angles = 40
 
         self.angle_offset = pi*0.75
-
-        self.min_conf = 0.05 # unused right now
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
@@ -52,7 +49,7 @@ class Player:
 
         # init golf map polygon
         if score == 1:
-            self.shapely_polygon = Polygon([(p.x,p.y) for p in golf_map.vertices])
+            shapely_polygon = Polygon([(p.x,p.y) for p in golf_map.vertices])
 
             x,y = list(zip(*golf_map.vertices))
             self.origin = (int(min(x)),int(min(y)))
@@ -62,7 +59,7 @@ class Player:
                 for j in range(len(self.in_polygon[0])):
                     px = self.origin[0]+i
                     py = self.origin[1]+j
-                    self.in_polygon[i][j] = self.shapely_polygon.contains(Point(px, py))     
+                    self.in_polygon[i][j] = shapely_polygon.contains(Point(px, py))     
                     
         np.copyto(self.np_curr_loc, curr_loc.coordinates, casting='unsafe')
         np.copyto(self.np_target, target.coordinates, casting='unsafe')
@@ -74,31 +71,25 @@ class Player:
         max_distance = min(200+self.skill, required_dist/roll_factor)
         target_angle = atan2(target.y - curr_loc.y, target.x - curr_loc.x)
 
-        # print(required_dist/roll_factor, target_angle)
-
-        t = 0
-
         best_shot = (0,0)
         max_metric = 0
 
         for distance in np.linspace(max_distance, max_distance / self.n_distances, num=self.n_distances):
             for angle in np.linspace(target_angle-self.angle_offset, target_angle+self.angle_offset, num=self.n_angles):
                 
-                # s = time()
                 conf = self.est_shot_conf(distance, angle)
-                # t += time() - s
                 
                 p = self.np_curr_loc + distance * np.array([np.cos(angle), np.sin(angle)])
                 target_dist = np.linalg.norm(self.np_target - p)
                 
-                metric = conf**2 / (target_dist+0.00001)
+                metric = self.compute_metric(conf, target_dist)
 
                 if metric > max_metric:
                     max_metric = metric
                     best_shot = (distance, angle)
 
         distance = (required_dist/roll_factor)
-        if distance < 200+self.skill:
+        if distance < (200+self.skill)*0.75:
 
             if distance < 20:
                 distance *= 1.10
@@ -106,30 +97,27 @@ class Player:
                 distance *= 1.05
 
             conf = self.est_shot_conf(distance, target_angle)
-            metric = conf**2 / (0+0.00001)
+            metric = self.compute_metric(conf, 0)
 
             if metric > max_metric:
                 max_metric = metric
                 best_shot = (distance, target_angle)
 
-        # print(t)
         print('shot', best_shot)
         return best_shot
 
-    def est_shot_conf(self, distance: float, angle: float, n_tries: int = 50, n_points_on_seg: int = 5):
+    def compute_metric(self, conf, target_dist):
+        return conf**3 / (target_dist+0.00001)
+
+    def est_shot_conf(self, distance: float, angle: float, n_tries: int = 60):
         start_time = time()
         n_valid = 0
-
-        # t = [0,0,0,0,0,0]
 
         # create memory now to save time creating lots of new np arrays
         landing_point = np.empty(2)
         final_point = np.empty(2)
         rot = np.empty(2)
         temp = np.empty(2)
-        direction = np.empty(2)
-        p = np.empty(2)
-        seg_inside_poly = True
 
         if constants.min_putter_dist <= distance <= constants.max_dist + self.skill: # normal shot
             case = 0
@@ -140,12 +128,9 @@ class Player:
 
         for _ in range(n_tries):
             
-            # a = time()
             actual_distance = self.rng.normal(distance, distance/self.skill)
             actual_angle = self.rng.normal(angle, 1/(2*self.skill))
-            # t[0] += time()-a
 
-            # a = time()
             if case == 0: # normal shot
                 rot[:2] = np.cos(actual_angle), np.sin(actual_angle)
 
@@ -165,35 +150,27 @@ class Player:
             else: # invalid, doesn't move
                 np.copyto(landing_point, self.np_curr_loc)
                 np.copyto(final_point, self.np_curr_loc)
-            # t[1] += time()-a
 
-            # a = time()
-            # check if line segment landingpoint-finalpoint intersects polygon
-            # Approximate this by checking if points along the segment are inside polygon
-            seg_inside_poly = True
-            np.subtract(final_point, landing_point, out=direction)
-            # t[2] += time()-a
-            for i in np.linspace(0, 1, num=n_points_on_seg):
-                # a = time()
-                np.multiply(i, direction, out=temp)
-                np.add(landing_point, temp, out=p)
-                # t[3] += time() - a
-                # a = time()
-                # if not self.shapely_polygon.contains(Point(p[0], p[1])):
-                if not self.point_in_polygon(p):
-                    seg_inside_poly = False
-                    # t[4] += time() - a
-                    break
-                # t[4] += time() - a
-
-
-            if seg_inside_poly:
+            if self.line_segment_in_polygon(landing_point, final_point, n_points_on_seg=5):
                 n_valid += 1
-
 
         # t = time() - start_time
         # print('est_shot_conf time:', t)
         return n_valid / n_tries
+
+    # Approx line-seg polygon intersection by checking points along the segment are inside polygon
+    def line_segment_in_polygon(self, p1, p2, n_points_on_seg):
+        direction = np.empty(2)
+        temp = np.empty(2)
+        p = np.empty(2)
+
+        np.subtract(p2, p1, out=direction)
+        for i in np.linspace(0, 1, num=n_points_on_seg):
+            np.multiply(i, direction, out=temp)
+            np.add(p1, temp, out=p)
+            if not self.point_in_polygon(p):
+                return False
+        return True
 
     def point_in_polygon(self, p):
         x,y = int(p[0])-self.origin[0],int(p[1])-self.origin[1]
