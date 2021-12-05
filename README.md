@@ -17,7 +17,7 @@ pip install -r requirements.txt
 Install map generation packages. Note the `--user` option to avoid conflicts with system packages
 
 ```bash
-pip install -r requirements.txt --user
+pip install -r requirements_map.txt --user
 ```
 
 ## Usage
