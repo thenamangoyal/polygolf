@@ -5,7 +5,9 @@ from typing import Tuple
 import constants
 from time import time
 from shapely.geometry import Polygon, Point
-from math import pi, atan2
+from math import pi, atan2, inf, sqrt
+
+from sklearn.neighbors import BallTree
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -30,6 +32,7 @@ class Player:
         self.n_angles = 40
 
         self.angle_offset = pi*0.75
+
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
@@ -175,3 +178,31 @@ class Player:
     def point_in_polygon(self, p):
         x,y = int(p[0])-self.origin[0],int(p[1])-self.origin[1]
         return 0<=x<len(self.in_polygon) and 0<=y<len(self.in_polygon[0]) and self.in_polygon[x][y]
+
+
+    class Node:
+        def __init__(self, tup, target):
+            self.x = tup[0]
+            self.y = tup[1]
+            self.came_from = None
+            self.gscore = inf
+            self.fscore = inf
+            self.hscore = sqrt((self.x - target.x)**2 + (self.y - target.y)**2)
+            self.neighbors = []
+
+        def __eq__(self, other):
+            if self.fscore == other.fscore:
+                return True
+
+        def __gt__(self, other):
+            if self.fscore > other.fscore:
+                return True
+            else:
+                return False
+
+        def __lt__(self, other):
+            if self.fscore < other.fscore:
+                return True
+            else:
+                return False
+
