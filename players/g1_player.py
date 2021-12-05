@@ -7,7 +7,6 @@ from sympy import Point2D
 import math
 import matplotlib.pyplot as plt
 import constants
-
 import heapq
 
 class Cell:
@@ -25,6 +24,8 @@ class Cell:
 
     def __eq__(self, other):
         return self.point == other.point
+    def __hash__(self):
+        return hash(self.point)
     
 
 
@@ -112,35 +113,25 @@ class Player:
         center = start_point
         #print("end "+ angle - angle_2std)
         sector1 = self.sector(center, angle + angle_2std, angle - angle_2std, d - distance_2std)
-        sector2 = self.sector(center, angle + angle_2std, angle - angle_2std, d + distance_2std )
-        probable_landing_region = sector1.intersection(sector2).buffer(0)
-        shape_map = self.map.vertices
-        shape_map_work = Polygon(shape_map)
-        #fig = plt.figure()
-        #plt.plot(x,y)
-        #plt.show()
-        
-        area_inside_the_polygon =  ((probable_landing_region.intersection(shape_map_work.buffer(0))).area)/probable_landing_region.area
+        sector2 = self.sector(center, angle + angle_2std, angle - angle_2std, d + distance_2std )       
+        #area_inside_the_polygon =  ((probable_landing_region.intersection(shape_map_work.buffer(0))).area)/probable_landing_region.area
         return (area_inside_the_polygon==1)
         
     def is_safe(self, d, angle, start_point):
-        angle_2std = math.degrees(2*(1/self.skill))
-        distance_2std = 2*(d/self.skill)
-        begin_line1 = (start_point.x + (d-distance_2std)*math.cos(angle - angle_2std), start_point.y + (d-distance_2std)*math.cos(angle - angle_2std))
-        begin_line2 = (start_point.x + (d-distance_2std)*math.cos(angle + angle_2std), start_point.y + (d-distance_2std)*math.cos(angle + angle_2std))
-        end_line1 = (start_point.x + (d+distance_2std)*math.cos(angle - angle_2std), start_point.y + (d+distance_2std)*math.cos(angle - angle_2std))
-        end_line2 = (start_point.x + (d+distance_2std)*math.cos(angle + angle_2std), start_point.y + (d+distance_2std)*math.cos(angle + angle_2std))
+        angle_2std = ((1/(2*self.skill)))
+        distance_2std = (d/self.skill)
+        begin_line1 = (start_point.x + (d-distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d-distance_2std)*math.sin(angle -angle_2std ))
+        begin_line2 = (start_point.x + (d-distance_2std)*math.cos(angle + angle_2std), start_point.y + (d-distance_2std)*math.sin(angle + angle_2std))
+        end_line1 = (start_point.x + (d+distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d+distance_2std)*math.sin(angle - angle_2std))
+        end_line2 = (start_point.x + (d+distance_2std)*math.cos(angle + angle_2std ), start_point.y + (d+distance_2std)*math.sin(angle + angle_2std))
         L1 = LineString([Point(begin_line1), Point(end_line1)])
-
-        print(start_point)
-        print(L1)
         L2 = LineString([Point(begin_line2), Point(end_line2)])
-        check1 = self.map_shapely.intersection(L1)
-        check2 = self.map_shapely.intersection(L2)
-        if (check1.is_empty |   check2.is_empty):
-            return 0
-        else:
+        check1 = L1.within(self.map_shapely)
+        check2 = L2.within(self.map_shapely)
+        if (check1 &   check2):
             return 1
+        else:
+            return 0
 
 
 
@@ -155,10 +146,13 @@ class Player:
         #is reachable
         if (np.linalg.norm(current_point - target_point) < max_dist):
             #is safe to land
+            if(Point2D(self.target).equals(Point2D(target_loc))):
+                return 1
             if (self.is_safe(required_dist,angle,Point2D(curr_loc))):
                 return 1
             else:
                 return 0
+            #return 1
         else:
             return 0
 
@@ -168,7 +162,6 @@ class Player:
             return [self.target]
         neighbours = []
         for center in self.centers:
-    
             if center.equals(Point2D(point)):
                 continue
             if self.is_neighbour(point, center):
@@ -180,6 +173,8 @@ class Player:
         cur_loc = tuple(current)
         current = Cell(cur_loc, self.target, 0.0 , cur_loc )
         openSet = set()
+        node_dict = {}
+        node_dict[(cur_loc)] = 0.0
         openHeap = []
         closedSet = set()
         openSet.add(cur_loc)
@@ -187,7 +182,6 @@ class Player:
         while openSet:
             next_pointC = heapq.heappop(openHeap)
             next_point = next_pointC.point
-            #print(next_point)
             #reached the goal
             if np.linalg.norm(np.array(self.target).astype(float) - np.array(next_point).astype(float)) <= 5.4 / 100.0:
                 while next_pointC.previous.point != cur_loc:
@@ -200,8 +194,10 @@ class Player:
                 if n not in closedSet:
                     cell = Cell(n, self.target, next_pointC.actual_cost +1 , next_pointC)
                     if n not in openSet and (next_pointC.actual_cost +1 <10 - self.turns):
-                        openSet.add(n)
-                        heapq.heappush(openHeap, cell )
+                        if (n not in node_dict or cell.total_cost() < node_dict(n)):
+                            openSet.add(n)
+                            node_dict[n] = cell.total_cost()
+                            heapq.heappush(openHeap, cell )
         return []
 
 
@@ -222,7 +218,6 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        print(prev_loc)
         if (prev_loc == None):
             
             self.segmentize_map(golf_map)
@@ -230,14 +225,13 @@ class Player:
             self.map = golf_map
             shape_map = golf_map.vertices 
             self.map_shapely = Polygon(shape_map)
-
+        
+        
         next_point = self.aStar(curr_loc, target )
-
-
-        print(next_point)
         required_dist = curr_loc.distance(next_point)
         angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
         #angle2  = math.degrees(angle)
         #a =  self.positionSafety( distance, angle2, curr_loc.evalf(), golf_map)
-        self.turns = self.turns +1
+        self.turns = self.turns +1  
+        print(next_point)
         return (required_dist, angle)
