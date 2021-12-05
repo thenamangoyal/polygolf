@@ -280,6 +280,10 @@ class Player:
         confidence = 0.95
         cl = float(curr_loc.x), float(curr_loc.y)
         while target_point is None:
+            if confidence <= 0.0:
+                return None
+
+            # print(f"searching with {confidence} confidence")
             target_point = self.next_target(cl, target, confidence)
             confidence -= 0.05
 
@@ -291,7 +295,15 @@ class Player:
             u = v / dist
             if dist * 1.10 > 20.0:
                 pass
-                # target_point = current_point + u * dist * (1 / 1.10)
+                max_offset = dist * 1 / 1.10
+                offset = 0
+                prev_target = target_point
+                while offset < max_offset and self.splash_zone_within_polygon(tuple(current_point), target_point, confidence):
+                    offset += 1
+                    dist = dist - offset
+                    prev_target = target_point
+                    target_point = current_point + u * dist
+                target_point = prev_target
             else:
                 target_point = current_point + u * dist * 1.10
 
