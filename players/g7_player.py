@@ -28,7 +28,7 @@ class Player:
         self.grid = []
         self.golf_map, bounding_box = PolygonUtility.convert_sympy_to_shapely(polygon)
         minX, minY, maxX, maxY = bounding_box
-        granularity = 20
+        granularity = 15
         for x in range(math.floor(minX), math.ceil(maxX + 1), granularity):
             for y in range(math.floor(minY), math.ceil(maxY + 1), granularity):
                 p = Point(x,y)
@@ -46,7 +46,9 @@ class Player:
             circle = Point(t.x, t.y).buffer(200 + self.skill)
             coveredPoints = []
             for point in self.grid:
-                if circle.contains(point) and self.test_greedy_shot(point, t):
+                tgs = self.test_greedy_shot(point, t)
+                possible_distance = circle.contains(point)
+                if tgs and possible_distance: 
                     # alpha(risk) + (1-alpha)(ve)
                     distance_to =  point.distance(t)
                     ph = PolygonUtility.point_hash(point)
@@ -61,6 +63,8 @@ class Player:
         ALPHA = 0.5
         best_locations = assign_value_est(target, 0)
         while len(best_locations) > 0:
+            print([(loc[0].x, loc[0].y, loc[1]) for loc in best_locations])
+            print()
             newBest = []
             self.logger.info(len(not_visited))
             for point, value in best_locations:
