@@ -68,8 +68,8 @@ class Player:
         list_of_distances = []
 
         queue = []
-        dimension = 10
-        allowed_distance = constants.max_dist + self.skill
+        dimension = 20
+        allowed_distance = (constants.max_dist + self.skill) / (1. + constants.extra_roll)
         threshold = 20.0
         amt = 1
         grid_of_scores = np.array(np.ones((dimension, dimension)) * 100)
@@ -160,24 +160,24 @@ class Player:
         distance = sympy.Min(constants.max_dist + self.skill, required_dist / roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
 
+        is_greedy = True
+        failed_times = 0
+        # simulate the actual situation to ensure fail times will not be larger than self.tolerant_times
+        for _ in range(self.simulate_times):
+            is_succ, _ = self.simulate_shapely_once(distance, angle, curr_loc, self.shapely_golf_map)
+            if not is_succ:
+                failed_times += 1
+                if failed_times > self.tolerant_times:
+                    is_greedy = False
+                    break
+        if is_greedy:
+            self.logger.info(str(self.turn) + "select greedy strategy to go")
+            return (distance, angle)
+
         if required_dist >= constants.max_dist + self.skill:
             self.logger.info(str(self.turn) + "branch 1 sample points to go")
             return self.get_points_inside_circle(self.point_dict, curr_loc, distance, target)
         else:
-            is_greedy = True
-            failed_times = 0
-            # simulate the actual situation to ensure fail times will not be larger than self.tolerant_times
-            for _ in range(self.simulate_times):
-                is_succ, _= self.simulate_shapely_once(distance, angle, curr_loc, self.shapely_golf_map)
-                if not is_succ:
-                    failed_times += 1
-                    if failed_times > self.tolerant_times:
-                        is_greedy = False
-                        break
-            if is_greedy:
-                self.logger.info(str(self.turn) + "select greedy strategy to go")
-                return (distance, angle)
-
             if distance < constants.min_putter_dist:
                 self.logger.info(str(self.turn) + "putter")
                 return (distance, angle)
@@ -185,100 +185,100 @@ class Player:
             self.logger.info(str(self.turn) + "branch 2 sample points to go")
             return self.get_points_inside_circle(self.point_dict, curr_loc, distance, target)
 
-        is_greedy = True
-        failed_times = 0
-        # simulate the actual situation to ensure fail times will not be larger than self.tolerant_times
-        for _ in range(self.simulate_times):
-            is_succ, final_point = self.simulate_once(distance, angle, curr_loc, golf_map)
-            if not is_succ:
-                failed_times += 1
-                if failed_times > self.tolerant_times:
-                    is_greedy = False
-                    break
-
-        if is_greedy:
-            self.logger.info(str(self.turn) + "select greedy strategy to go")
-            return (distance, angle)
-
-        # 2. if we cannot use greedy, we try to find the points intersected with the golf map
-        if prev_admissible is None or prev_admissible or not self.remember_middle_points:
-            circle = sympy.Circle(curr_loc, distance)
-            # TODO: cost about 6-8 seconds, too slow
-            intersect_points_origin = circle.intersection(golf_map)
-
-            intersect_points_num = len(intersect_points_origin)
-            temp_middle_points = []
-
-            for i in range(intersect_points_num):
-                for j in range(i + 1, intersect_points_num):
-                    middle_point = sympy.Point2D(float(intersect_points_origin[i].x + intersect_points_origin[j].x) / 2,
-                                                 float(intersect_points_origin[i].y + intersect_points_origin[j].y) / 2)
-                    # find points that in the golf map polygon
-                    if golf_map.encloses(middle_point):
-                        temp_middle_points.append(middle_point)
-
-            if len(temp_middle_points) == 0:
-                self.logger.error(str(self.turn) + "cannot find any middle point, BUG!!!")
-                return (distance, angle)
-
-            # if there are many ways to go, delete the points that can go back
-            middle_points = []
-            for i, middle_point in enumerate(temp_middle_points):
-                if middle_point.distance(target) > required_dist:
-                    continue
-                middle_points.append(middle_point)
-
-            # if there we delete every point in temp_middle_points,
-            # which means we could go longer ways than expected, we need to add back those points
-            if len(middle_points) == 0:
-                middle_points = temp_middle_points
-
-            self.remember_middle_points = middle_points
-        else:
-            middle_points = list(self.remember_middle_points)
-
-        middle_points_num = len(middle_points)
-        mid_to_target_distance = [0] * middle_points_num
-        for i, middle_point in enumerate(middle_points):
-            mid_to_target_distance[i] = middle_point.distance(target)
-
-        distance_sorted_indexes = sorted(range(middle_points_num), key=lambda x: mid_to_target_distance[x])
-
-        middle_failed_times = [0] * middle_points_num
-
-        midd_index = -1
-        for i in distance_sorted_indexes:
-            middle_point = middle_points[i]
-            angle = sympy.atan2(middle_point.y - curr_loc.y, middle_point.x - curr_loc.x)
-            for _ in range(self.simulate_times):
-                is_succ, final_point = self.simulate_once(distance, angle, curr_loc, golf_map)
-                if not is_succ:
-                    middle_failed_times[i] += 1
-                    if middle_failed_times[i] > self.tolerant_times:
-                        middle_failed_times[i] = -1
-                        break
-
-            if middle_failed_times[i] != -1:
-                midd_index = i
-                break
-
-        desire_distance = distance
-        if midd_index != -1:
-            self.logger.info(str(self.turn) + "select largest distance to middle point to go")
-            desire_angle = sympy.atan2(middle_points[midd_index].y - curr_loc.y,
-                                       middle_points[midd_index].x - curr_loc.x)
-
-            return (desire_distance, desire_angle)
-
-        # 3. if middle points are still not safe, choose the closest one to the target
-        closest_index = distance_sorted_indexes[0]
-        closest_middle_point = middle_points[closest_index]
-
-        curr_to_mid = closest_middle_point.distance(curr_loc)
-        desire_distance = sympy.Min(constants.max_dist + self.skill, curr_to_mid / roll_factor)
-        desire_angle = sympy.atan2(closest_middle_point.y - curr_loc.y, closest_middle_point.x - curr_loc.x)
-        self.logger.info(str(self.turn) + "risky!!! select closest middle point to go")
-        return (desire_distance, desire_angle)
+        # is_greedy = True
+        # failed_times = 0
+        # # simulate the actual situation to ensure fail times will not be larger than self.tolerant_times
+        # for _ in range(self.simulate_times):
+        #     is_succ, final_point = self.simulate_once(distance, angle, curr_loc, golf_map)
+        #     if not is_succ:
+        #         failed_times += 1
+        #         if failed_times > self.tolerant_times:
+        #             is_greedy = False
+        #             break
+        #
+        # if is_greedy:
+        #     self.logger.info(str(self.turn) + "select greedy strategy to go")
+        #     return (distance, angle)
+        #
+        # # 2. if we cannot use greedy, we try to find the points intersected with the golf map
+        # if prev_admissible is None or prev_admissible or not self.remember_middle_points:
+        #     circle = sympy.Circle(curr_loc, distance)
+        #     # TODO: cost about 6-8 seconds, too slow
+        #     intersect_points_origin = circle.intersection(golf_map)
+        #
+        #     intersect_points_num = len(intersect_points_origin)
+        #     temp_middle_points = []
+        #
+        #     for i in range(intersect_points_num):
+        #         for j in range(i + 1, intersect_points_num):
+        #             middle_point = sympy.Point2D(float(intersect_points_origin[i].x + intersect_points_origin[j].x) / 2,
+        #                                          float(intersect_points_origin[i].y + intersect_points_origin[j].y) / 2)
+        #             # find points that in the golf map polygon
+        #             if golf_map.encloses(middle_point):
+        #                 temp_middle_points.append(middle_point)
+        #
+        #     if len(temp_middle_points) == 0:
+        #         self.logger.error(str(self.turn) + "cannot find any middle point, BUG!!!")
+        #         return (distance, angle)
+        #
+        #     # if there are many ways to go, delete the points that can go back
+        #     middle_points = []
+        #     for i, middle_point in enumerate(temp_middle_points):
+        #         if middle_point.distance(target) > required_dist:
+        #             continue
+        #         middle_points.append(middle_point)
+        #
+        #     # if there we delete every point in temp_middle_points,
+        #     # which means we could go longer ways than expected, we need to add back those points
+        #     if len(middle_points) == 0:
+        #         middle_points = temp_middle_points
+        #
+        #     self.remember_middle_points = middle_points
+        # else:
+        #     middle_points = list(self.remember_middle_points)
+        #
+        # middle_points_num = len(middle_points)
+        # mid_to_target_distance = [0] * middle_points_num
+        # for i, middle_point in enumerate(middle_points):
+        #     mid_to_target_distance[i] = middle_point.distance(target)
+        #
+        # distance_sorted_indexes = sorted(range(middle_points_num), key=lambda x: mid_to_target_distance[x])
+        #
+        # middle_failed_times = [0] * middle_points_num
+        #
+        # midd_index = -1
+        # for i in distance_sorted_indexes:
+        #     middle_point = middle_points[i]
+        #     angle = sympy.atan2(middle_point.y - curr_loc.y, middle_point.x - curr_loc.x)
+        #     for _ in range(self.simulate_times):
+        #         is_succ, final_point = self.simulate_once(distance, angle, curr_loc, golf_map)
+        #         if not is_succ:
+        #             middle_failed_times[i] += 1
+        #             if middle_failed_times[i] > self.tolerant_times:
+        #                 middle_failed_times[i] = -1
+        #                 break
+        #
+        #     if middle_failed_times[i] != -1:
+        #         midd_index = i
+        #         break
+        #
+        # desire_distance = distance
+        # if midd_index != -1:
+        #     self.logger.info(str(self.turn) + "select largest distance to middle point to go")
+        #     desire_angle = sympy.atan2(middle_points[midd_index].y - curr_loc.y,
+        #                                middle_points[midd_index].x - curr_loc.x)
+        #
+        #     return (desire_distance, desire_angle)
+        #
+        # # 3. if middle points are still not safe, choose the closest one to the target
+        # closest_index = distance_sorted_indexes[0]
+        # closest_middle_point = middle_points[closest_index]
+        #
+        # curr_to_mid = closest_middle_point.distance(curr_loc)
+        # desire_distance = sympy.Min(constants.max_dist + self.skill, curr_to_mid / roll_factor)
+        # desire_angle = sympy.atan2(closest_middle_point.y - curr_loc.y, closest_middle_point.x - curr_loc.x)
+        # self.logger.info(str(self.turn) + "risky!!! select closest middle point to go")
+        # return (desire_distance, desire_angle)
 
     def simulate_shapely_once(self, distance, angle, curr_loc, golf_map):
         actual_distance = self.rng.normal(distance, distance / self.skill)
@@ -336,6 +336,7 @@ class Player:
             unsafe_points2score[point] = succ_times
 
         if safe_point is None:
+            self.logger.info(str(self.turn) + "reach unsafe state")
             unsafe_points = sorted(unsafe_points2score.items(), key=lambda x: -x[1])
             safe_point = unsafe_points[0][0]
 
