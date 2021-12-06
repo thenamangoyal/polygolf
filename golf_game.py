@@ -99,7 +99,14 @@ class GolfGame:
         self.next_player = self.__assign_next_player()
 
         if self.use_gui:
-            start(GolfApp, address=args.address, port=args.port, start_browser=not(args.no_browser), update_interval=0.5, userdata=(self, args.automatic, self.logger))
+            config = dict()
+            config["address"] = args.address
+            config["start_browser"] = not(args.no_browser)
+            config["update_interval"] = 0.5
+            config["userdata"] = (self, args.automatic, self.logger)
+            if args.port != -1:
+                config["port"] = args.port
+            start(GolfApp, **config)
         else:
             self.logger.debug("No GUI flag specified")
 
