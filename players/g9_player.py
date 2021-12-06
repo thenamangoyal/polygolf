@@ -8,6 +8,9 @@ from matplotlib import pyplot as plt
 from collections import deque
 import math
 from queue import PriorityQueue
+import heapq
+from heapq import heappush, heappop
+import os
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -31,6 +34,7 @@ class Player:
         self.distances = [200 + skill, (200 + skill) / 2, (200 + skill) / 4]
         self.angles = [0, np.pi / 6, np.pi / 4, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 3 * np.pi / 4, 5 * np.pi / 6, np.pi, 7 * np.pi / 6, 5 * np.pi / 4, 4 * np.pi / 3, 3 * np.pi / 2, 5 * np.pi / 3, 7 * np.pi / 4, 11 * np.pi / 6]
         self.path = None
+        self.tmp = 'fire.txt'
         
     def get_landing_point(self, curr_loc: shapely.geometry.Point, distance: float, angle: float):
         """
@@ -51,7 +55,7 @@ class Player:
 
     def get_row_col(self, x, y): #will return row, col closest to point (if within dmap)
         c = round((x - self.zero_center.x)/self.cell_width)
-        r = round((y - self.zero_center.y)/self.cell_width)
+        r = round((self.zero_center.y - y)/self.cell_width)
 
         return r, c
 
@@ -102,20 +106,22 @@ class Player:
                         self.pmap[nRow, nCol] = ndist
                         q.append((nRow, nCol, ndist, waterPoint))
 
-        r, c = self.get_row_col(50, 350)
-        print(self.pmap[r,c])
-        r, c = self.get_row_col(55, 350)
-        print(self.pmap[r,c])
 
     def p_in_water(self,start, end):
         d = start.distance(end)
         sigma = d/self.skill
         r, c = self.get_row_col(end.x, end.y)
-        dw = self.pmap(r, c) #distance to water for end point
+        dw = self.pmap[r, c] #distance to water for end point
         alpha = dw/sigma #number of standard deviations to water for end point
+        if 1 - alpha > 0.999:
+            alpha = 0.001
 
         if alpha <= 1:
-            return 1 - (1.848*math.exp(-1/alpha))
+            p = 1 - (1.848*math.exp(-1/alpha))
+            if 1 - p < 0.001:
+                return 0.999
+            else:
+                return p
         elif alpha < 2:
             return 1 - (0.68 + 0.27*(1- alpha))
         else:
@@ -146,9 +152,12 @@ class Player:
         self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy - self.cell_width / 2)
 
         print(self.zero_center)
+        print(self.rows)
+        print(self.cols)
 
         self.dmap = np.zeros((self.rows, self.cols), dtype=np.int8)
         self.pmap = np.zeros((self.rows, self.cols), dtype=np.int8)
+
 
         q = deque() #used for brushfire
 
@@ -180,7 +189,14 @@ class Player:
                     self.dmap[row, col] = 0
                     q.append((row,col,0, self.get_center(row, col))) #place edge in queue
 
+        if os.path.exists(self.tmp):
+            with open(self.tmp, 'rb') as f:
+                self.pmap = np.load(f)
+                print("loaded from file")
+                return
         self.brushfire(q)
+        with open(self.tmp, 'wb') as f:
+            np.save(f, self.pmap)
 
 
     # Generate potential branches for the A* searching algorithm
@@ -192,7 +208,7 @@ class Player:
                 new_point = self.get_landing_point(pt, distance, angle)
                 valid = True
                 for i in range(len(points) - 1):
-                    if pt.distance(new_point) < (self.max_distance / 2):
+                    if points[i].distance(new_point) < (self.max_distance/2):
                         valid = False
                         break
                 if valid:
@@ -201,28 +217,38 @@ class Player:
         return li
 
     def a_star(self, start, target):
+        count = 0
+        secondCount = 0
         print("starting a star")
 
-        pq = PriorityQueue() #convention for data insertion is [heuristic, path, estimated total strokes for this path]
+        #pq = PriorityQueue() #convention for data insertion is [heuristic, path, estimated total strokes for this path]
 
         E = start.distance(target)/(200 + self.skill)
         s = 0 #no shots taken so far
         path = [start]
-        pq.put([E, path, 0])
+        #pq.put([E, path, 0])
+        heap = [(E, secondCount, 0, path)]
 
-        while not pq.empty():
-            h, path, strokes = pq.get()
+        while heap:
+            if(count%100 == 0):
+                print(count)
+            count += 1
+            h, _, strokes, path = heappop(heap)
 
             lastPoint = path[-1]
             if lastPoint.distance(target) <= 200 + self.skill:
                 print("found path")
+                print(count)
                 path.append(target)
                 return path
 
 
             possibleShots = self.generate_branches(path)
 
+
             for shot in possibleShots:
+                secondCount += 1
+
                 r,c = self.get_row_col(shot.x, shot.y)
                 if(self.in_bounds(r, c)):
                     s = strokes + self.expected_strokes(lastPoint, shot)
@@ -230,7 +256,10 @@ class Player:
                     E = d/(200 + self.skill)
                     h = s + E #heuristic
                     newPath = path.copy()
-                    pq.put([h, newPath, s])
+                    newPath.append(shot)
+                    heappush(heap, (h, secondCount, s, newPath))
+
+        print(count)
 
 
 
@@ -262,6 +291,10 @@ class Player:
             t = shapely.geometry.Point(target.x, target.y)
             self.path = self.a_star(s, t)
 
+        for p in self.path:
+            print("path")
+            print(p.x, p.y)
+            print()
         print(self.path)
 
         # Testing
@@ -269,7 +302,32 @@ class Player:
         # .bounds function can get (minx, miny, maxx, maxy) tuple (float values) that bounds the object
    
         # Returning (0,0) for testing
-        return (0,0)
+
+        s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
+        t = shapely.geometry.Point(target.x, target.y)
+        if s.distance(t) <= self.max_distance:
+            angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+            distance = s.distance(t)
+            return (distance, angle)
+
+        minDist = float('inf')
+        closestI = None
+        for i in range(len(self.path)):
+            if s.distance(self.path[i]) < minDist:
+                minDist, closestI = s.distance(self.path[i]), i
+        pt = self.path[closestI + 1]
+
+        angle = sympy.atan2(pt.y - curr_loc.y, pt.x - curr_loc.x)
+        distance = min(self.max_distance, s.distance(self.path[closestI + 1]))
+
+        return (distance, angle)
+
+
+
+
+
+
+
         #
         required_dist = curr_loc.distance(target)
         roll_factor = 1.1
