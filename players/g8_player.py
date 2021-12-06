@@ -6,6 +6,7 @@ import constants
 from time import time
 from shapely.geometry import Polygon, Point
 from math import pi, atan2, inf, sqrt
+import heapq
 
 from sklearn.neighbors import BallTree
 
@@ -64,9 +65,14 @@ class Player:
                 for j in range(len(self.in_polygon[0])):
                     px = int(self.origin[0]+i)
                     py = int(self.origin[1]+j)
-                    self.in_polygon[i][j] = self.shapely_polygon.contains(Point(px, py))   
+                    self.in_polygon[i][j] = self.shapely_polygon.contains(Point(px, py))
 
-            nodes = self.compute_graph_nodes(golf_map)
+            self.map = golf_map
+            path = self.get_path()
+            print("Start: ", self.np_curr_loc)
+            print(path)
+            for node in path:
+                print(node.x, node.y)
   
                     
         np.copyto(self.np_curr_loc, curr_loc.coordinates, casting='unsafe')
@@ -184,34 +190,6 @@ class Player:
         x,y = int(p[0])-self.origin[0],int(p[1])-self.origin[1]
         return 0<=x<len(self.in_polygon) and 0<=y<len(self.in_polygon[0]) and self.in_polygon[x][y]
 
-
-
-    class Node:
-        def __init__(self, tup, target):
-            self.x = tup[0]
-            self.y = tup[1]
-            self.came_from = None
-            self.gscore = inf
-            self.fscore = inf
-            self.hscore = sqrt((self.x - target.x)**2 + (self.y - target.y)**2)
-            self.neighbors = []
-
-        def __eq__(self, other):
-            if self.fscore == other.fscore:
-                return True
-
-        def __gt__(self, other):
-            if self.fscore > other.fscore:
-                return True
-            else:
-                return False
-
-        def __lt__(self, other):
-            if self.fscore < other.fscore:
-                return True
-            else:
-                return False
-
     def compute_graph_nodes(self, golf_map: sympy.Polygon):
         '''
         returns a list of nodes. Each node is a tuple (x,y).
@@ -250,3 +228,98 @@ class Player:
                         p = (1-t)*a + t*b
                         nodes.append(tuple(p))
         return nodes
+
+    def make_map(self, nodes):
+        self.tree = BallTree(nodes, leaf_size=8)
+
+    def reconstruct_path(self, node):
+        print("Constructing path.")
+        total_path = [node]
+        parent = node.came_from
+        while parent:
+            total_path.append(parent)
+            parent = parent.came_from
+        return total_path
+
+    def get_path(self):
+        self.nodes = self.compute_graph_nodes(golf_map=self.map)
+        self.nodes.append((self.np_target[0], self.np_target[1])) # add target to nodes
+        self.nodes.append((self.np_curr_loc[0], self.np_curr_loc[1]))
+        self.make_map(self.nodes)
+        self.Nodes = []
+        for i in range(0,len(self.nodes)-2): # add start and target later
+            node = self.nodes[i]
+            new_node = Node(node, self.np_target, self.tree)
+            self.Nodes.append(new_node)
+
+        end = Node((self.np_target[0],self.np_target[1]), self.np_target, self.tree, is_target=True)
+        self.Nodes.append(end)
+        start = Node(self.nodes[-1], self.np_target, self.tree)
+        self.Nodes.append(start)
+        start.gscore = 0
+        start.fscore = start.hscore
+        open_set = [start]
+        heapq.heapify(open_set)
+
+        while open_set:
+            current = open_set.pop()
+
+            if current.is_target:
+                print("Success! Found End!")
+                return self.reconstruct_path(current)
+            if current.hscore < 200+self.skill:
+                print("Success! Close to End!")
+                end.came_from = current
+                return self.reconstruct_path(end)
+
+            for i,neighbor_index in enumerate(current.neighbors_indeces):
+                neighbor = self.Nodes[neighbor_index]
+                distance_to_neighbor = current.neighbors_distances[i]
+                if distance_to_neighbor < self.skill+200 or self.line_segment_in_polygon(np.array([current.x, current.y]), np.array([neighbor.x, neighbor.y]), n_points_on_seg=5):
+                    tentative_gscore = current.gscore + distance_to_neighbor
+                else:
+                    tentative_gscore = inf
+
+                if tentative_gscore < neighbor.gscore:
+                    neighbor.came_from = current
+                    neighbor.gscore = tentative_gscore
+                    neighbor.fscore = tentative_gscore + neighbor.hscore
+                    if neighbor not in open_set:
+                        #print("Found new neighbor!")
+                        heapq.heappush(open_set, neighbor)
+
+        return False
+
+
+class Node:
+    def __init__(self, tup, target, tree, is_target = False):
+        self.x = tup[0]
+        self.y = tup[1]
+        self.came_from = None
+        self.gscore = inf
+        self.fscore = inf
+        first = np.array([float(self.x), float(self.y)])
+        self.hscore = np.linalg.norm(first-target) # distance to target
+        self.neighbors_distances, self.neighbors_indeces = tree.query([(self.x, self.y)], k=15) # list of 8 nearest neighbors
+        self.neighbors_distances = self.neighbors_distances[0]
+        self.neighbors_indeces = self.neighbors_indeces[0]
+        self.is_target = is_target
+
+    def __eq__(self, other):
+        if self.fscore == other.fscore:
+            return True
+
+    def __gt__(self, other):
+        if self.fscore > other.fscore:
+            return True
+        else:
+            return False
+
+    def __lt__(self, other):
+        if self.fscore < other.fscore:
+            return True
+        else:
+            return False
+
+    def distance(self, other):
+        return np.linalg.norm(np.array([float(self.x), float(self.y)])-np.array([float(other.x), float(other.y)]))
