@@ -71,7 +71,7 @@ class Player:
         list_of_distances = []
 
         queue = []
-        dimension = 30
+        dimension = 20
         allowed_distance = (constants.max_dist + self.skill) / (1. + constants.extra_roll)
         threshold = 20.0
         amt = 1
@@ -151,7 +151,7 @@ class Player:
                     if int(grid_scores[x_index][y_index]) != 100:
                         self.point_dict[Point(point_map[x_index][y_index].x, point_map[x_index][y_index].y)] = int(
                             grid_scores[x_index][y_index])
-            print(grid_scores)
+            # print(grid_scores)
             self.shapely_golf_map = shapely.geometry.polygon.Polygon(golf_map.vertices)
 
         self.turn += 1
@@ -226,14 +226,14 @@ class Player:
         if curr_expected_score > smallest_score:
             max_possible_score = curr_expected_score - 1
 
-        print("max_possible_score", max_possible_score)
+        # print("max_possible_score", max_possible_score)
         smallest_score_points = dict()
         for points, value in sorted_points_score.items():
             if value <= max_possible_score:
                 smallest_score_points[points] = (value, get_distance(target, points))
 
         closest2target_points = dict(sorted(smallest_score_points.items(), key=lambda x: (x[1][0], x[1][1])))
-        print("chosen points", closest2target_points)
+        # print("chosen points", closest2target_points)
         safe_point = None
         unsafe_points2score = dict()
         for point in closest2target_points.keys():
@@ -250,7 +250,7 @@ class Player:
 
             unsafe_points2score[point] = succ_times
 
-        print(safe_point, unsafe_points2score)
+        # print(safe_point, unsafe_points2score)
         if safe_point is None:
             unsafe_points = sorted(unsafe_points2score.items(), key=lambda x: -x[1])
             safe_point = unsafe_points[0][0]
