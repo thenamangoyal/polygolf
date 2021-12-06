@@ -432,7 +432,7 @@ class GolfGame:
             reached_target = False
 
         admissible = False
-        if self.golf.golf_map.encloses(segment_land):
+        if self.golf.golf_map.encloses(segment_land) and not self.golf.golf_map.intersection(segment_land):
             admissible = True
             observed_final_point = final_point
             observed_landing_point = landing_point
