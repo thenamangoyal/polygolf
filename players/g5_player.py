@@ -12,27 +12,65 @@ import matplotlib.pyplot as plt
 
 
 class LandingPoint(object):
-    def __init__(self, x, y, distance_from_origin, angle):
+    def __init__(self, x, y, distance_from_origin, angle_from_origin, h_dist, start_point, skill, rng):
         # distance_from_origin is the distance from our curr_location to the landing point
 
         self.point = Point(x, y)
         self.distance_from_origin = distance_from_origin
-        self.angle = angle
+        self.angle_from_origin = angle_from_origin
+        self.heuristic = h_dist
+        self.score_threshold = 95
+        self.trials = 10
+        self.start_point = start_point
+        self.skill = skill
+        self.rng = rng
 
     @staticmethod
     def is_on_land(point, polygon):
         return point.within(polygon)
 
-    def confidence(self):
-        pass
+    # def is_roll_in_polygon(self, point_a, distance, angle):
+    #     x = float(point_a.x.evalf())
+    #     y = float(point_a.y.evalf())
+    #     # distance = float(distance.evalf())
+    #     # angle = float(angle.evalf())
+    #     distance = self.distance_from_origin
+    #     angle = self.angle_from_origin
+    #     print("SELF.ANGLE_FROM_ORIGIN", self.angle_from_origin)
+    #     curr_point = Point(x + distance * np.cos(angle),
+    #                        y + distance * np.sin(angle))
+    #     final_point = Point(
+    #         x + (1.1) * distance * np.cos(angle),
+    #         y + (1.1) * distance * np.sin(angle))
 
-    def heuristic(self):
-        pass
+    #     segment_land = LineString([curr_point, final_point])
+    #     start_time = time()
+    #     if_encloses = self.shapely_polygon.contains(segment_land)
+    #     end_time = time()
+    #     # print("time: ", end_time - start_time)
+    #     return if_encloses
+
+    def confidence(self):
+        # return 80
+        # intended_distance = shot[0]
+        # intended_angle = shot[1]
+        intended_distance = self.distance_from_origin
+        intended_angle = self.angle_from_origin
+        successful = 0
+        for t in range(0, self.trials):
+            actual_distance = self.rng.normal(intended_distance, intended_distance / self.skill)
+            actual_angle = self.rng.normal(intended_angle, 1 / (2 * self.skill))
+            if self.is_roll_in_polygon(self.start_point, actual_distance, actual_angle):
+                successful += 1
+        return successful / self.trials
+        # pass
+
+    #def heuristic(self):
+        #pass
 
     def score(self):
         # uses confidence and heuristic
-        pass
-
+        return self.heuristic + (self.confidence() * 100)
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -127,7 +165,7 @@ class Player:
         angle = sympy.atan2(point_b.y - point_a.y, point_b.x - point_a.x)
         return angle, distance
 
-    def is_roll_in_polygon(self, point_a, distance, angle, map):
+    def is_roll_in_polygon(self, point_a, distance, angle):
         x = float(point_a.x.evalf())
         y = float(point_a.y.evalf())
         # distance = float(distance.evalf())
@@ -145,13 +183,30 @@ class Player:
         # print("time: ", end_time - start_time)
         return if_encloses
 
-    def search_landing_points(self, landing_points, curr_loc, map):
-        for landing_point in landing_points:
-            angle, distance = self.calculate_angle_and_distance(curr_loc, landing_point)
-            if self.is_roll_in_polygon(curr_loc, distance, angle, map):
+    def search_landing_points(self, points, curr_loc, target):
+        largest_point = None
+        largest_point_score = -1 * float('inf')
+        for point in points:
+            angle, distance = self.calculate_angle_and_distance(curr_loc, point)
+            print("ACTUAL ANGLE FROM ORIGIN", angle)
+            h_angle, h_dist = self.calculate_angle_and_distance(point, target)
+            print("HDIST", h_dist)
+            landing_point = LandingPoint(point.x, point.y, distance, angle, -1 *h_dist, curr_loc, self.skill, self.rng)
+            curr_score = landing_point.score()
+
+            print("CURR SCORE", curr_score)
+
+            if curr_score >= landing_point.score_threshold:
                 return distance, angle
 
-        return 0, 0  # TODO: bad position, go back
+            if curr_score > largest_point_score:
+                largest_point = landing_point
+                largest_point_score = curr_score
+            # if self.is_roll_in_polygon(curr_loc, distance, angle):
+            #     return distance, angle
+
+        #return 0, 0  # TODO: bad position, go back
+        return largest_point.distance_from_origin, largest_point.angle_from_origin
 
     def search_targets(self, target, curr_loc, map):
         required_dist = curr_loc.distance(target)
@@ -167,12 +222,12 @@ class Player:
             theta = 0
             while theta < sympy.pi / 2:
                 if theta == 0:
-                    if self.is_roll_in_polygon(curr_loc, r, angle, map):
+                    if self.is_roll_in_polygon(curr_loc, r, angle):
                         return r, angle
                 else:
-                    if self.is_roll_in_polygon(curr_loc, r, angle + theta, map):
+                    if self.is_roll_in_polygon(curr_loc, r, angle + theta):
                         return distance, angle + theta
-                    if self.is_roll_in_polygon(curr_loc, r, angle - theta, map):
+                    if self.is_roll_in_polygon(curr_loc, r, angle - theta):
                         return r, angle - theta
                 theta += float(sympy.pi / 120)
                 # theta += float(random.uniform(-.1, 0.1))
@@ -232,6 +287,6 @@ class Player:
         if score == 1:
             self.shapely_polygon = Polygon([(p.x, p.y) for p in golf_map.vertices])
 
-        points = self.search_points(curr_loc, target, self.shapely_polygon)
-
+        # points = self.search_points(curr_loc, target, self.shapely_polygon)
+        # return self.search_landing_points(points, curr_loc, target)
         return self.search_targets(target, curr_loc, golf_map)
