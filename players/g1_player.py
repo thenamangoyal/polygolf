@@ -12,6 +12,7 @@ from matplotlib.path import Path
 
 
 
+
 class Cell:
     def __init__(self,point, target, actual_cost, previousp ):
         self.point = point
