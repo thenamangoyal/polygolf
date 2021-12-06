@@ -1,6 +1,9 @@
 import numpy as np
 import sympy
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon, Point, LineString
+import skgeom as sg
+from skgeom.draw import draw
+import matplotlib.pyplot as plt
 import math
 import logging
 from typing import Tuple
@@ -24,6 +27,8 @@ class Player:
         self.logger = logger
 
         self.shapely_poly = None
+        self.shapely_edges = None
+        self.scikit_poly = None
         self.graph = {}  # self.graph[node_i] contains a list of edges where each edge_j = (node_j, weight, f_count)
         # self.all_nodes_center = {}
         self.needs_edge_init = True
@@ -40,7 +45,7 @@ class Player:
         for point in self.critical_pts:
             if not self.shapely_poly.contains(Point(point[0], point[1])):
                 out_count += 1
-        print("out count: ", str(out_count))
+        # print("out count: ", str(out_count))
         if out_count:
             skel = sg.skeleton.create_exterior_straight_skeleton(self.scikit_poly, 0.1)
             self.draw_skeleton(self.scikit_poly, skel)
@@ -68,18 +73,14 @@ class Player:
                         valid_edge += 1
             # return True
         if valid_edge >= 8:
-            # print("valid")
             return True
         else:
             return False
 
-    def construct_nodes(self, golf_map, leftest, rightest, highest, lowest, step, target):
-        """Function which creates a graph on self.graph based on constraints, with valid nodes
+    def construct_nodes(self, target):
+        """Function which creates a graph on self.graph with critical points, curr_loc, and target
 
         Args:
-            golf_map (sympy.Polygon): Golf Map polygon
-            leftest, rightest, highest, lowest (int): limits of map
-            step (float): size of node
             target (sympy.geometry.Point2D): Target location
         """
         since = time.time()
@@ -93,6 +94,91 @@ class Player:
 
         if DEBUG_MSG:
             print("time for construct_nodes:", time.time() - since)
+
+    def construct_land_bridges(self, curr_loc):
+        since = time.time()
+
+        skill_dist_range = 200 + self.skill
+
+        new_nodes = []
+        for from_node in self.graph.keys():
+            if from_node == 'curr_loc':
+                for to_node in self.graph.keys():
+                    if to_node == from_node:  # 'curr_loc' can't have an Edge with itself
+                        continue
+                    distance = self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node)
+                    line = LineString([(int(curr_loc.x), int(curr_loc.y)), to_node])
+
+                    # a. If edge_len < 200: keep as is, regardless of going over water
+                    if distance < skill_dist_range:
+                        continue
+
+                    # b. If edge_len > 200: check if it goes over water
+                    # via line intersecting map
+                    else:
+                        # i. If yes, calculate bank_distance for this edge
+                        if self.shapely_edges.intersects(line):
+                            continue
+                        # i. If no, create some land bridges based on distance between nodes
+                        else:
+                            num_stops = math.floor(distance / skill_dist_range)
+                            len_stop = distance / (num_stops + 1)
+
+                            # delta y
+                            d_y = to_node[1] - curr_loc.y
+                            # delta x
+                            d_x = to_node[0] - curr_loc.x
+
+                            theta = math.atan(d_y / d_x)
+
+                            for n in range(num_stops):
+                                offset_y = (n + 1) * len_stop * math.sin(theta)
+                                offset_x = (n + 1) * len_stop * math.cos(theta)
+
+                                stop_point = (curr_loc.x + offset_x, curr_loc.y + offset_y)
+                                if self.shapely_poly.contains(Point(stop_point[0], stop_point[1])):
+                                    new_nodes.append(stop_point)
+            else:
+                for to_node in self.graph.keys():
+                    if to_node == 'curr_loc' or to_node == from_node:
+                        continue
+                    distance = self._euc_dist(from_node, to_node)
+                    line = LineString([from_node, to_node])
+                    # a. If edge_len < 200: keep as is, regardless of going over water
+                    if distance < skill_dist_range:
+                        continue
+
+                    # b. If edge_len > 200: check if it goes over water
+                    # via line intersecting map
+                    else:
+                        # i. If yes, calculate bank_distance for this edge
+                        if self.shapely_edges.intersects(line):
+                            continue
+                        # i. If no, create some land bridges based on distance between nodes
+                        else:
+                            num_stops = math.floor(distance / skill_dist_range)
+                            len_stop = distance / (num_stops + 1)
+
+                            # delta y
+                            d_y = to_node[1] - from_node[1]
+                            # delta x
+                            d_x = to_node[0] - from_node[0]
+
+                            theta = math.atan(d_y / d_x)
+
+                            for n in range(num_stops):
+                                offset_y = (n + 1) * len_stop * math.sin(theta)
+                                offset_x = (n + 1) * len_stop * math.cos(theta)
+
+                                stop_point = (from_node[0] + offset_x, from_node[1] + offset_y)
+                                if self.shapely_poly.contains(Point(stop_point[0], stop_point[1])):
+                                    new_nodes.append(stop_point)
+
+        for node in new_nodes:
+            self.graph[node] = []
+        # print("# nodes: " + str(len(self.graph.keys())))
+        if DEBUG_MSG:
+            print("time for additional_nodes:", time.time() - since)
 
     def construct_more_nodes(self, curr_loc):
         """Function that builds 'bridges nodes' nearby polygon edges
@@ -108,6 +194,7 @@ class Player:
         hyp = 0.5  # vary this based on skill?
 
         for i in range(runs):
+            alt_nodes = 0
             new_nodes = []
             for from_node in self.graph.keys():
                 if from_node == 'curr_loc':
@@ -129,6 +216,10 @@ class Player:
                                 # this should be a LineString obj with 2n points
                                 intersection = list(self.shapely_edges.intersection(line).geoms)
 
+                                # test: if we cross water more than once, ignore path.
+                                if int(len(intersection) / 2) > 1:
+                                    continue
+
                                 for i in range(int(len(intersection) / 2)):
                                     inter_0 = list(intersection[2 * i].coords)[0]
                                     inter_1 = list(intersection[(2 * i) + 1].coords)[0]
@@ -155,6 +246,11 @@ class Player:
                                                 self.shapely_poly.contains(Point(bridge_1[0], bridge_1[1]))):
                                             new_nodes.append(bridge_0)
                                             new_nodes.append(bridge_1)
+                                            """ if alt_nodes%2 == 0:
+                                                new_nodes.append(bridge_0)
+                                            else: 
+                                                new_nodes.append(bridge_1) """
+                                            alt_nodes += 1
 
                 else:
                     for to_node in self.graph.keys():
@@ -173,6 +269,10 @@ class Player:
                             if self.shapely_edges.intersects(line):
                                 intersection = list(self.shapely_edges.intersection(line).geoms)
 
+                                # test: if we cross water more than once, ignore path.
+                                if int(len(intersection) / 2) > 1:
+                                    continue
+
                                 for i in range(int(len(intersection) / 2)):
                                     inter_0 = list(intersection[2 * i].coords)[0]
                                     inter_1 = list(intersection[(2 * i) + 1].coords)[0]
@@ -199,10 +299,15 @@ class Player:
                                                 self.shapely_poly.contains(Point(bridge_1[0], bridge_1[1]))):
                                             new_nodes.append(bridge_0)
                                             new_nodes.append(bridge_1)
+                                            """ if alt_nodes%2 == 0:
+                                                new_nodes.append(bridge_0)
+                                            else: 
+                                                new_nodes.append(bridge_1) """
+                                            alt_nodes += 1
 
             for node in new_nodes:
                 self.graph[node] = []
-        print("# nodes: " + str(len(self.graph.keys())))
+        # print("# nodes: " + str(len(self.graph.keys())))
         if DEBUG_MSG:
             print("time for additional_nodes:", time.time() - since)
 
@@ -216,7 +321,6 @@ class Player:
             target (sympy.geometry.Point2D): Target location
         """
 
-    def construct_edges(self, curr_loc, only_construct_from_source=False):
         """Graph Creation: Edges
         - In short, we construct directional Edge e: (n1, n2) if our skill level allows us to reach n2 from n1
         - For edges going from:
@@ -231,8 +335,8 @@ class Player:
         skill_dist_range = 200 + self.skill
         epsilon = 0.01
 
+        # 2. Connect every node
         for from_node in self.graph.keys():
-
             # constructing an Edge from curr_loc to another non-curr_loc Node
             if from_node == 'curr_loc':
                 # clear existing adjacency list of this from_node
@@ -241,20 +345,17 @@ class Player:
                 for to_node in self.graph.keys():
                     if to_node == from_node:  # 'curr_loc' can't have an Edge with itself
                         continue
-                    """
-                    can_reach_one_unit = False  # whether at least one Unit in to_node is reachable from from_node
-                    for unit_center in to_node:
-                        if self._euc_dist((int(curr_loc.x), int(curr_loc.y)), unit_center) > skill_dist_range:
-                            continue
-                        can_reach_one_unit = True
-                        break
 
-                    # if Edge (from_node, to_node) is valid, add to from_node's adjacency list
-                    if can_reach_one_unit:
-                        self.graph[from_node].append(to_node)
-                    """
-                    to_node_center = self.all_nodes_center[to_node]
-                    if self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node_center) <= skill_dist_range + epsilon:
+                    if to_node == (float(target.x), float(target.y)):
+                        if self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node) <= 20:
+                            line = LineString([(int(curr_loc.x), int(curr_loc.y)), to_node])
+                            # i. If yes, calculate bank_distance for this edge
+                            if self.shapely_edges.intersects(line):
+                                continue
+                            else:
+                                self.graph[from_node].append(to_node)
+
+                    elif self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node) <= skill_dist_range + epsilon:
                         self.graph[from_node].append(to_node)
 
                 source_completed = True
@@ -281,7 +382,7 @@ class Player:
                             else:
                                 self.graph[from_node].append(to_node)
                     # if the distance between the two Node centers is reachable, add to from_node's adjacency list
-                    if self._euc_dist(from_node_center, to_node_center) <= skill_dist_range:
+                    elif self._euc_dist(from_node, to_node) <= skill_dist_range:
                         self.graph[from_node].append(to_node)
 
         if DEBUG_MSG:
@@ -293,17 +394,17 @@ class Player:
         pt2 = np.array((float(pt2[0]), float(pt2[1])))
         return np.linalg.norm(pt1 - pt2)
 
-    @staticmethod
-    def _get_node_center(unit_centers):
-        if len(unit_centers) % 2:  # if number of Units is odd, take the middle Unit center as the Node center
-            node_center = unit_centers[int(len(unit_centers) / 2)]
-        else:  # if number of Units is even, average the middle two Unit centers as the Node center
-            mid_left_unit_center = unit_centers[int(len(unit_centers) / 2) - 1]
-            mid_right_unit_center = unit_centers[int(len(unit_centers) / 2)]
-            node_center_x = (mid_left_unit_center[0] + mid_right_unit_center[0]) / 2
-            node_center_y = (mid_left_unit_center[1] + mid_right_unit_center[1]) / 2
-            node_center = (node_center_x, node_center_y)
-        return node_center
+    # @staticmethod
+    # def _get_node_center(unit_centers):
+    #     if len(unit_centers) % 2:  # if number of Units is odd, take the middle Unit center as the Node center
+    #         node_center = unit_centers[int(len(unit_centers) / 2)]
+    #     else:  # if number of Units is even, average the middle two Unit centers as the Node center
+    #         mid_left_unit_center = unit_centers[int(len(unit_centers) / 2) - 1]
+    #         mid_right_unit_center = unit_centers[int(len(unit_centers) / 2)]
+    #         node_center_x = (mid_left_unit_center[0] + mid_right_unit_center[0]) / 2
+    #         node_center_y = (mid_left_unit_center[1] + mid_right_unit_center[1]) / 2
+    #         node_center = (node_center_x, node_center_y)
+    #     return node_center
 
     def BFS(self, target):
         """Function that performs BFS on the graph of nodes to find a path to the target, prioritizing minimum
@@ -315,14 +416,15 @@ class Player:
         since = time.time()
 
         visited = defaultdict(int)
-        compare_target = ((target.x, target.y),)
+        # compare_target = ((target.x, target.y),)
+        compare_target = (float(target.x), float(target.y))
         queue = []
         queue.append(['curr_loc'])
         final_path = []
         while queue:
             path = queue.pop(0)
             node = path[-1]
-            if node == compare_target:
+            if node != 'curr_loc' and node == compare_target:
                 # print(path)
                 final_path = path
                 break
@@ -386,14 +488,14 @@ class Player:
             skel = sg.skeleton.create_interior_straight_skeleton(self.scikit_poly)
             self.draw_skeleton(self.scikit_poly, skel)
             self.construct_nodes(target)
+            self.construct_land_bridges(curr_loc)
+            self.construct_more_nodes(curr_loc)
 
             draw(self.scikit_poly)
 
             for v in self.graph.keys():
                 plt.plot(v[0], v[1], 'bo')
             plt.savefig('test.png')
-
-            self.construct_more_nodes(curr_loc)
 
             if self.needs_edge_init:
                 self.construct_edges(curr_loc, target, only_construct_from_source=False)
@@ -410,6 +512,7 @@ class Player:
             roll_factor = 1.0
 
         if move == "default":
+            # print("******default******")
             distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
             angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
             return (distance, angle)
