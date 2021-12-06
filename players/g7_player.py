@@ -105,12 +105,25 @@ class Player:
         drop_location = self.get_location_from_shot(distance, angle, curr_loc)
         return self.golf_map.contains(final_location) and self.golf_map.contains(drop_location)
 
+    def check_putt(self, distance, angle, curr_loc, roll_factor):
+        location_1 = self.get_location_from_shot(distance * 1/4, angle, curr_loc)
+        location_2 = self.get_location_from_shot(distance * 1/2, angle, curr_loc)
+        location_3 = self.get_location_from_shot(distance * 3/4, angle, curr_loc)
+        return self.golf_map.contains(location_1) and self.golf_map.contains(location_2) and self.golf_map.contains(location_3)
+
     def get_greedy_shot(self, point, target):
         dist = point.distance(target)
-        roll_factor = 1.0 if dist < 20 else 1.1 
+        roll_factor = 1.0 if dist < 20 else 1.1
         angle = sympy.atan2(target.y - point.y, target.x - point.x)
         shoot_distance = dist/roll_factor
-        return (shoot_distance, angle), roll_factor
+        new_shot = (shoot_distance, angle)
+        # new_shot = (shoot_distance + sqrt(dist/self.skill), angle)
+        if roll_factor == 1.0:
+            # exact distance
+            self.check_putt(*new_shot, point, roll_factor)
+            # overshooting distance
+            # self.check_putt(*new_shot, point, roll_factor)
+        return new_shot, roll_factor
 
     def test_greedy_shot(self, point, target):
         shot, roll_factor = self.get_greedy_shot(point, target)
