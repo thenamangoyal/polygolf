@@ -7,6 +7,7 @@ import random
 from matplotlib import pyplot as plt
 from collections import deque
 import math
+from queue import PriorityQueue
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -29,6 +30,7 @@ class Player:
         self.max_distance = 200 + skill
         self.distances = [200 + skill, (200 + skill) / 2, (200 + skill) / 4]
         self.angles = [0, np.pi / 6, np.pi / 4, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 3 * np.pi / 4, 5 * np.pi / 6, np.pi, 7 * np.pi / 6, 5 * np.pi / 4, 4 * np.pi / 3, 3 * np.pi / 2, 5 * np.pi / 3, 7 * np.pi / 4, 11 * np.pi / 6]
+        self.path = None
         
     def get_landing_point(self, curr_loc: shapely.geometry.Point, distance: float, angle: float):
         """
@@ -110,17 +112,17 @@ class Player:
         sigma = d/self.skill
         r, c = self.get_row_col(end.x, end.y)
         dw = self.pmap(r, c) #distance to water for end point
-        alpha = dw/sigma #number of standard deviations to water
+        alpha = dw/sigma #number of standard deviations to water for end point
 
         if alpha <= 1:
-            return 1 - (1.848*math.exp-(1/alpha))
+            return 1 - (1.848*math.exp(-1/alpha))
         elif alpha < 2:
-            return 1 - (0.68 + 0.27(1- alpha))
+            return 1 - (0.68 + 0.27*(1- alpha))
         else:
             return 0
 
     def expected_strokes(self, start, end):
-        ratio = p_in_water(start,end):
+        ratio = self.p_in_water(start,end)
 
         return 1 + (ratio)/(1-ratio)
 
@@ -196,7 +198,44 @@ class Player:
                 if valid:
                     li.append(new_point)
 
-        return new_point
+        return li
+
+    def a_star(self, start, target):
+        print("starting a star")
+
+        pq = PriorityQueue() #convention for data insertion is [heuristic, path, estimated total strokes for this path]
+
+        E = start.distance(target)/(200 + self.skill)
+        s = 0 #no shots taken so far
+        path = [start]
+        pq.put([E, path, 0])
+
+        while not pq.empty():
+            h, path, strokes = pq.get()
+
+            lastPoint = path[-1]
+            if lastPoint.distance(target) <= 200 + self.skill:
+                print("found path")
+                path.append(target)
+                return path
+
+
+            possibleShots = self.generate_branches(path)
+
+            for shot in possibleShots:
+                r,c = self.get_row_col(shot.x, shot.y)
+                if(self.in_bounds(r, c)):
+                    s = strokes + self.expected_strokes(lastPoint, shot)
+                    d = shot.distance(target)
+                    E = d/(200 + self.skill)
+                    h = s + E #heuristic
+                    newPath = path.copy()
+                    pq.put([h, newPath, s])
+
+
+
+
+
 
     
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
@@ -217,6 +256,13 @@ class Player:
         if not self.quick_map:
             self.quick_map = shapely.geometry.Polygon([(p.x,p.y) for p in golf_map.vertices])
             self.precompute()
+
+        if not self.path:
+            s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
+            t = shapely.geometry.Point(target.x, target.y)
+            self.path = self.a_star(s, t)
+
+        print(self.path)
 
         # Testing
         count = 0
