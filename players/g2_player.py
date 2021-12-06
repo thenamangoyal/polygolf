@@ -5,41 +5,52 @@ import logging
 import heapq
 from scipy import stats as scipy_stats
 
-from typing import Tuple, Iterator, List
+from typing import Tuple, Iterator, List, Union
 from sympy.geometry import Polygon, Point2D
 from matplotlib.path import Path
+from shapely.geometry import Polygon as ShapelyPolygon, Point as ShapelyPoint
+from scipy.spatial.distance import cdist
 
 
-def splash_zone(distance: float, angle: float, conf: float, skill: int, current_point: Tuple[float, float]) -> List[Tuple[float, float]]:
+# Cached distribution
+DIST = scipy_stats.norm(0, 1)
+
+
+@functools.lru_cache()
+def standard_ppf(conf: float) -> float:
+    return DIST.ppf(conf)
+
+
+def result_point(distance: float, angle: float, current_point: Tuple[float, float]) -> Tuple[float, float]:
+    cx, cy = current_point
+    nx = cx + distance * np.cos(angle)
+    ny = cy + distance * np.sin(angle)
+    return nx, ny
+
+
+def spread_points(current_point, angles: np.array, distance, reverse) -> np.array:
     curr_x, curr_y = current_point
-    conf_points = np.linspace(1 - conf, conf, 100)
-    d_dist = scipy_stats.norm(distance, distance/skill)
-    a_dist = scipy_stats.norm(angle, 1/(2*skill))
-    distances = np.vectorize(d_dist.ppf)(conf_points)
-    angles = np.vectorize(a_dist.ppf)(conf_points)
-    xs = []
-    ys = []
+    if reverse:
+        angles = np.flip(angles)
+    xs = np.cos(angles) * distance + curr_x
+    ys = np.sin(angles) * distance + curr_y
+    return np.column_stack((xs, ys))
+
+
+def splash_zone(distance: float, angle: float, conf: float, skill: int, current_point: Tuple[float, float]) -> np.array:
+    conf_points = np.linspace(1 - conf, conf, 50)
+    distances = np.vectorize(standard_ppf)(conf_points) * (distance / skill) + distance
+    angles = np.vectorize(standard_ppf)(conf_points) * (1/(2*skill)) + angle
     scale = 1.1
     if distance <= 20:
         scale = 1.0
     max_distance = distances[-1]*scale
-    for a in angles:
-        x = curr_x + max_distance * np.cos(a)
-        y = curr_y + max_distance * np.sin(a)
-
-        xs.append(x)
-        ys.append(y)
+    top_arc = spread_points(current_point, angles, max_distance, False)
 
     min_distance = distances[0]
-    for a in reversed(angles):
-        x = curr_x + min_distance * np.cos(a)
-        y = curr_y + min_distance * np.sin(a)
+    bottom_arc = spread_points(current_point, angles, min_distance, True)
 
-        xs.append(x)
-        ys.append(y)
-
-    # return Polygon(*zip(xs,ys), evaluate=False)
-    return list(zip(xs, ys))
+    return np.concatenate((top_arc, bottom_arc, np.array([top_arc[0]])))
 
 
 def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
@@ -65,10 +76,6 @@ def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
         x_current += x_step
 
 
-def point_within_polygon(target_point: Tuple[float, float], poly: Polygon) -> bool:
-    return poly.encloses_point(target_point)
-
-
 def sympy_poly_to_mpl(sympy_poly: Polygon) -> Path:
     """Helper function to convert sympy Polygon to matplotlib Path object"""
     v = sympy_poly.vertices
@@ -76,33 +83,45 @@ def sympy_poly_to_mpl(sympy_poly: Polygon) -> Path:
     return Path(v, closed=True)
 
 
+def sympy_poly_to_shapely(sympy_poly: Polygon) -> ShapelyPolygon:
+    """Helper function to convert sympy Polygon to shapely Polygon object"""
+    v = sympy_poly.vertices
+    v.append(v[0])
+    return ShapelyPolygon(v)
+
+
 class ScoredPoint:
     """Scored point class for use in A* search algorithm"""
-    def __init__(self, point: Tuple[float, float], goal: Tuple[float, float], actual_cost=float('inf'), previous=None):
-        if type(point) == Point2D:
-            self.point = tuple(point)
-            self.point = float(self.point[0]), float(self.point[1])
-        else:
-            self.point = point
+    def __init__(self, point: Tuple[float, float], goal: Tuple[float, float], actual_cost=float('inf'), previous=None, goal_dist=None):
+        self.point = point
+        self.goal = goal
 
-        if type(goal) == Point2D:
-            self.goal = tuple(goal)
-            self.goal = float(self.goal[0]), float(self.goal[1])
-        else:
-            self.goal = goal
-
-        a = np.array(self.point).astype(float)
-        b = np.array(self.goal).astype(float)
-        self.h_cost = np.linalg.norm(a - b)
-
-        self.actual_cost = actual_cost
         self.previous = previous
-    
+
+        self._actual_cost = actual_cost
+        if goal_dist:
+            self._h_cost = goal_dist
+        else:
+            a = np.array(self.point)
+            b = np.array(self.goal)
+            self._h_cost = np.linalg.norm(a - b)
+
+        self._f_cost = self.actual_cost + self.h_cost
+
+    @property
     def f_cost(self):
-        return self.h_cost + self.actual_cost
+        return self._f_cost
+
+    @property
+    def h_cost(self):
+        return self._h_cost
+
+    @property
+    def actual_cost(self):
+        return self._actual_cost
 
     def __lt__(self, other):
-        return self.f_cost() < other.f_cost()
+        return self.f_cost < other.f_cost
 
     def __eq__(self, other):
         return self.point == other.point
@@ -126,8 +145,9 @@ class Player:
         self.skill = skill
         self.rng = rng
         self.logger = logger
-        self.map_points = None
-        self.mpl_poly = None
+        self.np_map_points = None
+        self.mpl_paly = None
+        self.shapely_poly = None
         self.goal = None
         self.prev_rv = None
 
@@ -135,7 +155,7 @@ class Player:
         max_dist = 200 + self.skill
         self.max_ddist = scipy_stats.norm(max_dist, max_dist / self.skill)
 
-    @functools.cache
+    @functools.lru_cache()
     def _max_ddist_ppf(self, conf: float):
         return self.max_ddist.ppf(1.0 - conf)
 
@@ -159,29 +179,25 @@ class Player:
             target_point = tuple(Point2D)
 
         distance = np.linalg.norm(np.array(current_point).astype(float) - np.array(target_point).astype(float))
-        # TODO: Use numpy.arctan2
         cx, cy = current_point
         tx, ty = target_point
         angle = np.arctan2(float(ty) - float(cy), float(tx) - float(cx))
-        splash_zone_polygon = splash_zone(float(distance), float(angle), float(conf), self.skill, current_point)
-        return self.mpl_poly.contains_points(splash_zone_polygon).all()
+        splash_zone_poly_points = splash_zone(float(distance), float(angle), float(conf), self.skill, current_point)
+        return self.shapely_poly.contains(ShapelyPolygon(splash_zone_poly_points))
 
-    def adjacent_points(self, point: Tuple[float, float], conf: float) -> Iterator[Tuple[float, float]]:
-        # check goal point
-        if self.reachable_point(point, self.goal, conf):
-            yield self.goal
+    def numpy_adjacent_and_dist(self, point: Tuple[float, float], conf: float):
+        cloc_distances = cdist(self.np_map_points, np.array([np.array(point)]), 'euclidean')
+        cloc_distances = cloc_distances.flatten()
+        distance_mask = cloc_distances <= self._max_ddist_ppf(conf)
 
-        for candidate_point in self.map_points:
-            if self.reachable_point(point, candidate_point, conf):
-                yield tuple(candidate_point)
+        reachable_points = self.np_map_points[distance_mask]
+        goal_distances = self.np_goal_dist[distance_mask]
 
-    def scored_adjacent_points(self, point: Tuple[float, float], goal: Tuple[float, float], conf: float) -> Iterator[Tuple[float, float]]:
-        for candidate_point in self.adjacent_points(point, conf):
-            # Tuple of heuristic score and candidate point
-            yield ScoredPoint(candidate_point, goal)
+        return reachable_points, goal_distances
 
-    def next_target(self, curr_loc: Point2D, goal: Point2D, conf: float) -> Tuple[float, float]:
-        heap = [ScoredPoint(curr_loc, goal, 0.0)]
+    def next_target(self, curr_loc: Tuple[float, float], goal: Point2D, conf: float) -> Union[None, Tuple[float, float]]:
+        point_goal = float(goal.x), float(goal.y)
+        heap = [ScoredPoint(curr_loc, point_goal, 0.0)]
         start_point = heap[0].point
         # Used to cache the best cost and avoid adding useless points to the heap
         best_cost = {tuple(curr_loc): 0.0}
@@ -189,7 +205,6 @@ class Player:
         while len(heap) > 0:
             next_sp = heapq.heappop(heap)
             next_p = next_sp.point
-            del best_cost[next_p]
 
             if next_p in visited:
                 continue
@@ -199,29 +214,43 @@ class Player:
 
             if np.linalg.norm(np.array(self.goal) - np.array(next_p)) <= 5.4 / 100.0:
                 # All we care about is the next point
+                # TODO: We need to check if the path length is <= 10, because if it isn't we probably need to
+                #  reduce the conf and try again for a shorter path.
                 while next_sp.previous.point != start_point:
                     next_sp = next_sp.previous
                 return next_sp.point
             
             # Add adjacent points to heap
-            sap = list(self.adjacent_points(next_p, conf))
-            for candidate_point in sap:
-                new_point = ScoredPoint(candidate_point, goal, next_sp.actual_cost + 1, next_sp)
-                if candidate_point not in best_cost or best_cost[candidate_point] > new_point.f_cost():
-                    best_cost[candidate_point] = new_point.f_cost()
+            reachable_points, goal_dists = self.numpy_adjacent_and_dist(next_p, conf)
+            for i in range(len(reachable_points)):
+                candidate_point = tuple(reachable_points[i])
+                goal_dist = goal_dists[i]
+                new_point = ScoredPoint(candidate_point, point_goal, next_sp.actual_cost + 1, next_sp,
+                                        goal_dist=goal_dist)
+                if candidate_point not in best_cost or best_cost[candidate_point] > new_point.actual_cost:
+                    best_cost[candidate_point] = new_point.actual_cost
                     heapq.heappush(heap, new_point)
 
         # No path available
         return None
 
-    def _initialize_map_points(self, golf_map: Polygon):
-        map_points = []
+    def _initialize_map_points(self, goal: Tuple[float, float], golf_map: Polygon):
+        # Storing the points as numpy array
+        np_map_points = [goal]
+        map_points = [goal]
         self.mpl_poly = sympy_poly_to_mpl(golf_map)
+        self.shapely_poly = sympy_poly_to_shapely(golf_map)
         pp = list(poly_to_points(golf_map))
         for point in pp:
+            # Use matplotlib here because it's faster than shapely for this calculation...
             if self.mpl_poly.contains_point(point):
-                map_points.append(tuple(point))
-        self.map_points = np.array(map_points)
+                # map_points.append(point)
+                x, y = point
+                np_map_points.append(np.array([x, y]))
+        # self.map_points = np.array(map_points)
+        self.np_map_points = np.array(np_map_points)
+        self.np_goal_dist = cdist(self.np_map_points, np.array([np.array(self.goal)]), 'euclidean')
+        self.np_goal_dist.flatten()
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
@@ -238,9 +267,10 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        if self.map_points is None:
-            self._initialize_map_points(golf_map)
+        if self.np_map_points is None:
+            gx, gy = float(target.x), float(target.y)
             self.goal = float(target.x), float(target.y)
+            self._initialize_map_points((gx, gy), golf_map)
 
         # Optimization to retry missed shots
         if self.prev_rv is not None and curr_loc == prev_loc:
@@ -250,6 +280,10 @@ class Player:
         confidence = 0.95
         cl = float(curr_loc.x), float(curr_loc.y)
         while target_point is None:
+            if confidence <= 0.0:
+                return None
+
+            # print(f"searching with {confidence} confidence")
             target_point = self.next_target(cl, target, confidence)
             confidence -= 0.05
 
@@ -261,7 +295,15 @@ class Player:
             u = v / dist
             if dist * 1.10 > 20.0:
                 pass
-                # target_point = current_point + u * dist * (1 / 1.10)
+                max_offset = dist * 1 / 1.10
+                offset = 0
+                prev_target = target_point
+                while offset < max_offset and self.splash_zone_within_polygon(tuple(current_point), target_point, confidence):
+                    offset += 1
+                    dist = dist - offset
+                    prev_target = target_point
+                    target_point = current_point + u * dist
+                target_point = prev_target
             else:
                 target_point = current_point + u * dist * 1.10
 
@@ -282,17 +324,6 @@ def test_reachable():
     player = Player(50, 0xdeadbeef, None)
     
     assert not player.reachable_point(current_point, target_point, 0.80)
-
-
-def test_point_within_polygon():
-    poly = Polygon((0,0), (0, 300), (300, 300), (300, 0), evaluate=False)
-
-    # Just checking points inside and outside
-    inside = Point2D(0.1, 1, evaluate=False)
-    outside = Point2D(301, 301, evaluate=False)
-
-    assert point_within_polygon(inside, poly)
-    assert not point_within_polygon(outside, poly)
 
 
 def test_splash_zone_within_polygon():
