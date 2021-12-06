@@ -1,3 +1,4 @@
+import sys
 import time
 
 import numpy as np
@@ -70,7 +71,7 @@ class Player:
         list_of_distances = []
 
         queue = []
-        dimension = 20
+        dimension = 30
         allowed_distance = (constants.max_dist + self.skill) / (1. + constants.extra_roll)
         threshold = 20.0
         amt = 1
@@ -150,6 +151,7 @@ class Player:
                     if int(grid_scores[x_index][y_index]) != 100:
                         self.point_dict[Point(point_map[x_index][y_index].x, point_map[x_index][y_index].y)] = int(
                             grid_scores[x_index][y_index])
+            print(grid_scores)
             self.shapely_golf_map = shapely.geometry.polygon.Polygon(golf_map.vertices)
 
         self.turn += 1
@@ -217,13 +219,21 @@ class Player:
                 circle_points[points] = points_score[points]
 
         sorted_points_score = dict(sorted(circle_points.items(), key=lambda x: x[1]))
+        curr_expected_score = self.get_expected_score(self.point_dict, curr_loc)
         smallest_score = min(sorted_points_score.values())
+
+        max_possible_score = curr_expected_score
+        if curr_expected_score > smallest_score:
+            max_possible_score = curr_expected_score - 1
+
+        print("max_possible_score", max_possible_score)
         smallest_score_points = dict()
         for points, value in sorted_points_score.items():
-            if value == smallest_score:
-                smallest_score_points[points] = get_distance(target, points)
+            if value <= max_possible_score:
+                smallest_score_points[points] = (value, get_distance(target, points))
 
-        closest2target_points = dict(sorted(smallest_score_points.items(), key=lambda x: x[1]))
+        closest2target_points = dict(sorted(smallest_score_points.items(), key=lambda x: (x[1][0], x[1][1])))
+        print("chosen points", closest2target_points)
         safe_point = None
         unsafe_points2score = dict()
         for point in closest2target_points.keys():
@@ -240,6 +250,7 @@ class Player:
 
             unsafe_points2score[point] = succ_times
 
+        print(safe_point, unsafe_points2score)
         if safe_point is None:
             unsafe_points = sorted(unsafe_points2score.items(), key=lambda x: -x[1])
             safe_point = unsafe_points[0][0]
@@ -374,3 +385,13 @@ class Player:
             max_succ_times = self.simulate_times
 
         return (desire_distance, desire_angle, max_succ_times)
+
+    def get_expected_score(self, points_score, curr_loc):
+        expected_score = 100
+        smallest_distance = sys.maxsize
+        for point, score in points_score.items():
+            current_dist = get_distance(curr_loc, point)
+            if current_dist < smallest_distance:
+                expected_score = score
+                smallest_distance = current_dist
+        return expected_score
