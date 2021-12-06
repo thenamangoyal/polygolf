@@ -20,8 +20,8 @@ class LandingPoint(object):
         self.angle = angle
 
     @staticmethod
-    def is_on_land(x, y, polygon):
-        pass
+    def is_on_land(point, polygon):
+        return point.within(polygon)
 
     def confidence(self):
         pass
@@ -57,7 +57,7 @@ class Player:
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
         return distance, angle
 
-    def search_points(self, curr_loc, target, increment=25):
+    def search_points(self, curr_loc, target, polygon, increment=25):
         distance, angle = self.direct_distance_angle(curr_loc, target)
         points = [curr_loc]
         r = distance
@@ -70,11 +70,15 @@ class Player:
             for i in range(0, int(num_sector) + 1):
                 point = Point(curr_loc.x + r * np.cos(float(angle + (i * angle_increment))),
                               curr_loc.y + r * np.sin(float(angle + (i * angle_increment))))
-                points.append(point)
+
+                if LandingPoint.is_on_land(point, polygon):
+                    points.append(point)
                 if i > 0:
                     point = Point(curr_loc.x + r * np.cos(float(angle - (i * angle_increment))),
                                   curr_loc.y + r * np.sin(float(angle - (i * angle_increment))))
-                    points.append(point)
+
+                    if LandingPoint.is_on_land(point, polygon):
+                        points.append(point)
             r -= increment
         # x = [c.x for c in corners]
         # y = [c.y for c in corners]
@@ -228,6 +232,6 @@ class Player:
         if score == 1:
             self.shapely_polygon = Polygon([(p.x, p.y) for p in golf_map.vertices])
 
-        points = self.search_points(curr_loc, target)
+        points = self.search_points(curr_loc, target, self.shapely_polygon)
 
         return self.search_targets(target, curr_loc, golf_map)
