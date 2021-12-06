@@ -4,7 +4,7 @@ import logging
 from typing import Tuple
 import constants
 from time import time
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon, Point, LineString
 from math import pi, atan2, inf, sqrt
 import heapq
 
@@ -26,6 +26,9 @@ class Player:
         self.np_curr_loc = np.empty(2)
         self.np_target = np.empty(2)
 
+        self.target = None
+        self.current_loc = None
+
         self.in_polygon = None
         self.origin = None
 
@@ -35,6 +38,8 @@ class Player:
         self.n_angles = 40
 
         self.angle_offset = pi*0.75
+
+        self.perc_of_path_comp = 0
 
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
@@ -53,8 +58,10 @@ class Player:
             Tuple[float, float]: Return a tuple of (landing, doesn't include roll) distance and angle in radians to play the shot
         """
 
+        self.current_loc = np.array([float(curr_loc.x), float(curr_loc.y)])
         # init golf map polygon
         if score == 1:
+            self.target = np.array([float(target.x), float(target.y)])
             self.shapely_polygon = Polygon([(p.x,p.y) for p in golf_map.vertices])
 
             x,y = list(zip(*golf_map.vertices))
@@ -69,11 +76,8 @@ class Player:
 
             self.map = golf_map
             path = self.get_path()
-            print("Start: ", self.np_curr_loc)
-            print(path)
-            for node in path:
-                print(node.x, node.y)
-  
+            path.reverse()
+            self.path = LineString([(p.x,p.y) for p in path])
                     
         np.copyto(self.np_curr_loc, curr_loc.coordinates, casting='unsafe')
         np.copyto(self.np_target, target.coordinates, casting='unsafe')
@@ -87,41 +91,62 @@ class Player:
 
         best_shot = (0,0)
         max_metric = 0
+        best_perc_of_path = 0
 
         for distance in np.linspace(max_distance, max_distance / self.n_distances, num=self.n_distances):
             for angle in np.linspace(target_angle-self.angle_offset, target_angle+self.angle_offset, num=self.n_angles):
                 
                 conf = self.est_shot_conf(distance, angle)
+                # print(distance, angle, conf)
                 
                 p = self.np_curr_loc + distance * np.array([np.cos(angle), np.sin(angle)])
-                target_dist = np.linalg.norm(self.np_target - p)
                 
-                metric = self.compute_metric(conf, target_dist)
+                metric, perc_of_path = self.compute_metric(Point(p), conf)
 
                 if metric > max_metric:
                     max_metric = metric
                     best_shot = (distance, angle)
+                    best_perc_of_path = perc_of_path
+                    # print(perc_of_path - self.perc_of_path_comp)
 
         distance = (required_dist/roll_factor)
         if distance < (200+self.skill)*0.75:
-
             if distance < 20:
                 distance *= 1.10
             else:
                 distance *= 1.05
-
+            
             conf = self.est_shot_conf(distance, target_angle)
-            metric = self.compute_metric(conf, 0)
+            metric, perc_of_path = self.compute_metric(Point(target.x,target.y), conf)
 
             if metric > max_metric:
                 max_metric = metric
                 best_shot = (distance, target_angle)
+                best_perc_of_path = perc_of_path
 
         print('shot', best_shot)
+        self.perc_of_path_comp = best_perc_of_path
         return best_shot
 
-    def compute_metric(self, conf, target_dist):
-        return conf**3 / (target_dist+0.00001)
+    def compute_metric(self, curr_point, conf):
+        """
+            curr_point: Shapely.Point
+            conf: float between 0 and 1
+        """
+        line = self.path
+
+        # calculate distance to our path
+        dist_to_line = curr_point.distance(line)
+
+        # calculate percentage of path completed
+        _, last = line.boundary
+        dist_traveled_path = line.project(curr_point)
+        total_dist_path = line.project(last)
+        perc_of_path_comp = dist_traveled_path / total_dist_path
+
+        k1, k2, k3 = 1, 100, 1 
+
+        return (k1 * conf) * (k2 * (perc_of_path_comp - self.perc_of_path_comp)) / (k3 * dist_to_line+0.00001), perc_of_path_comp
 
     def est_shot_conf(self, distance: float, angle: float, n_tries: int = 60):
         start_time = time()
@@ -233,7 +258,6 @@ class Player:
         self.tree = BallTree(nodes, leaf_size=8)
 
     def reconstruct_path(self, node):
-        print("Constructing path.")
         total_path = [node]
         parent = node.came_from
         while parent:
@@ -243,18 +267,18 @@ class Player:
 
     def get_path(self):
         self.nodes = self.compute_graph_nodes(golf_map=self.map)
-        self.nodes.append((self.np_target[0], self.np_target[1])) # add target to nodes
-        self.nodes.append((self.np_curr_loc[0], self.np_curr_loc[1]))
+        self.nodes.append((self.target[0], self.target[1])) # add target to nodes
+        self.nodes.append((self.current_loc[0], self.current_loc[1]))
         self.make_map(self.nodes)
         self.Nodes = []
         for i in range(0,len(self.nodes)-2): # add start and target later
             node = self.nodes[i]
-            new_node = Node(node, self.np_target, self.tree)
+            new_node = Node(node, self.target, self.tree)
             self.Nodes.append(new_node)
 
-        end = Node((self.np_target[0],self.np_target[1]), self.np_target, self.tree, is_target=True)
+        end = Node((self.target[0],self.target[1]), self.target, self.tree, is_target=True)
         self.Nodes.append(end)
-        start = Node(self.nodes[-1], self.np_target, self.tree)
+        start = Node(self.nodes[-1], self.target, self.tree)
         self.Nodes.append(start)
         start.gscore = 0
         start.fscore = start.hscore
@@ -263,6 +287,7 @@ class Player:
 
         while open_set:
             current = open_set.pop()
+            # print("curr", current.x, current.y, current.is_target, current.hscore, 200+self.skill)
 
             if current.is_target:
                 print("Success! Found End!")
@@ -323,3 +348,5 @@ class Node:
 
     def distance(self, other):
         return np.linalg.norm(np.array([float(self.x), float(self.y)])-np.array([float(other.x), float(other.y)]))
+
+
