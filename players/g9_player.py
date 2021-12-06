@@ -92,7 +92,7 @@ class Player:
 
 
     def brushfire(self, q):
-        print("starting brushfire")
+        # print("starting brushfire")
         while(len(q) != 0):
             row, col, dist, waterPoint = q.popleft()
 
@@ -137,23 +137,15 @@ class Player:
         minx, miny, maxx, maxy = self.quick_map.bounds
         self.minx = minx
         self.miny = miny
-        print(minx)
-        print(maxx)
-        print(miny)
-        print(maxy)
+
 
         testpt = shapely.geometry.Point(50,160)
-        print(self.quick_map.contains(testpt))
 
         width = maxx - minx
         height = maxy - miny
         self.cols = int(np.ceil(width / self.cell_width))
         self.rows = int(np.ceil(height / self.cell_width))
         self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy - self.cell_width / 2)
-
-        print(self.zero_center)
-        print(self.rows)
-        print(self.cols)
 
         self.dmap = np.zeros((self.rows, self.cols), dtype=np.int8)
         self.pmap = np.zeros((self.rows, self.cols), dtype=np.int8)
@@ -169,7 +161,6 @@ class Player:
                 for point in corners:
                     if self.quick_map.contains(point):
                         land += 1
-                        #print("inside")
                     else:
                         water += 1
 
@@ -189,14 +180,15 @@ class Player:
                     self.dmap[row, col] = 0
                     q.append((row,col,0, self.get_center(row, col))) #place edge in queue
 
-        if os.path.exists(self.tmp):
-            with open(self.tmp, 'rb') as f:
-                self.pmap = np.load(f)
-                print("loaded from file")
-                return
+        ### Commented out code saves precomputed brushfire map for testing purposes
+        # if os.path.exists(self.tmp):
+        #     with open(self.tmp, 'rb') as f:
+        #         self.pmap = np.load(f)
+        #         print("loaded from file")
+        #         return
         self.brushfire(q)
-        with open(self.tmp, 'wb') as f:
-            np.save(f, self.pmap)
+        # with open(self.tmp, 'wb') as f:
+        #     np.save(f, self.pmap)
 
 
     # Generate potential branches for the A* searching algorithm
@@ -219,7 +211,7 @@ class Player:
     def a_star(self, start, target):
         count = 0
         secondCount = 0
-        print("starting a star")
+        # print("starting a star")
 
         #pq = PriorityQueue() #convention for data insertion is [heuristic, path, estimated total strokes for this path]
 
@@ -230,15 +222,13 @@ class Player:
         heap = [(E, secondCount, 0, path)]
 
         while heap:
-            if(count%100 == 0):
-                print(count)
             count += 1
             h, _, strokes, path = heappop(heap)
 
             lastPoint = path[-1]
             if lastPoint.distance(target) <= 200 + self.skill:
-                print("found path")
-                print(count)
+                # print("found path")
+                # print(count)
                 path.append(target)
                 return path
 
@@ -259,7 +249,6 @@ class Player:
                     newPath.append(shot)
                     heappush(heap, (h, secondCount, s, newPath))
 
-        print(count)
 
 
 
@@ -291,17 +280,14 @@ class Player:
             t = shapely.geometry.Point(target.x, target.y)
             self.path = self.a_star(s, t)
 
-        for p in self.path:
-            print("path")
-            print(p.x, p.y)
-            print()
-        print(self.path)
+        # for p in self.path:
+        #     print(p.x, p.y)
+        #     print()
+        # print(self.path)
 
         # Testing
         count = 0
         # .bounds function can get (minx, miny, maxx, maxy) tuple (float values) that bounds the object
-   
-        # Returning (0,0) for testing
 
         s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
         t = shapely.geometry.Point(target.x, target.y)
@@ -320,47 +306,4 @@ class Player:
         angle = sympy.atan2(pt.y - curr_loc.y, pt.x - curr_loc.x)
         distance = min(self.max_distance, s.distance(self.path[closestI + 1]))
 
-        return (distance, angle)
-
-
-
-
-
-
-
-        #
-        required_dist = curr_loc.distance(target)
-        roll_factor = 1.1
-        if required_dist < 20:
-            roll_factor  = 1.0
-        distance = sympy.Min(200+self.skill, required_dist/roll_factor)
-        angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
-        
-        # The potential landing point
-        landing_point = self.get_landing_point(curr_loc, distance, angle)
-        delta_angle = 5 * sympy.pi / 180
-        
-        
-        # if we're landing in water, then try different angles until we land on grass.
-        if golf_map.encloses(landing_point) == False:
-            potential_angle = delta_angle
-            while(potential_angle <= sympy.pi):
-                # Check in one direction
-                if golf_map.encloses(self.get_landing_point(curr_loc, distance, angle + potential_angle)) == True:
-                    angle = angle + potential_angle
-                    break
-                # Check in the other direction
-                if golf_map.encloses(self.get_landing_point(curr_loc, distance, angle - potential_angle)) == True:
-                    angle = angle - potential_angle
-                    break
-                    
-                potential_angle += delta_angle
-            
-            # If we went through all angles and none of them work try to decrease the distance
-            if potential_angle > sympy.pi:
-                distance -= 10
-                angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
-                while golf_map.encloses_point(self.get_landing_point(curr_loc, distance, angle)) == False:
-                    distance -= 10
-        
         return (distance, angle)
