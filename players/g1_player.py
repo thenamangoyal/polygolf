@@ -111,8 +111,8 @@ class Player:
     def positionSafety(self, d, angle, start_point):
 
         #CIRCLE of radiues = 2 standand deviations
-        angle_2std = math.degrees(2*(1/self.skill))
-        distance_2std = 2*(d/self.skill)
+        angle_2std = math.degrees((1/(2*self.skill)))
+        distance_2std = (d/self.skill)
         center = start_point
         #print("end "+ angle - angle_2std)
         sector1 = self.sector(center, angle + angle_2std, angle - angle_2std, d - distance_2std)
@@ -122,7 +122,7 @@ class Player:
         
     def is_safe(self, d, angle, start_point):
         #to do add confidence bounds
-        angle_2std = ((2/(self.skill)))
+        angle_2std = ((1/(2*self.skill)))
         distance_2std = (d/self.skill)
         begin_line1 = (start_point.x + (d-distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d-distance_2std)*math.sin(angle -angle_2std ))
         begin_line2 = (start_point.x + (d-distance_2std)*math.cos(angle + angle_2std), start_point.y + (d-distance_2std)*math.sin(angle + angle_2std))
@@ -197,7 +197,7 @@ class Player:
             for n in neighbours :
                 if n not in closedSet:
                     cell = Cell(n, self.target, next_pointC.actual_cost +1 , next_pointC)
-                    if n not in openSet and (next_pointC.actual_cost +1 <10 - self.turns):
+                    if n not in openSet and (next_pointC.actual_cost +1 <=10 - self.turns):
                         if (n not in node_dict or cell.total_cost() < node_dict(n)):
                             openSet.add(n)
                             node_dict[n] = cell.total_cost()
