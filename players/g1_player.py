@@ -236,6 +236,9 @@ class Player:
         angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
         #angle2  = math.degrees(angle)
         #a =  self.positionSafety( distance, angle2, curr_loc.evalf(), golf_map)
+        if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
+            if(required_dist>20):
+                required_dist = 0.9*required_dist
 
         self.turns = self.turns +1  
         print(next_point)
