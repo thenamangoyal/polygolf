@@ -147,3 +147,4 @@ results/
 
 # Default gen map path
 maps/temp.json
+*.yml
