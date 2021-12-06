@@ -34,7 +34,7 @@ class Player:
             for y in range(math.floor(minY), math.ceil(maxY + 1), granularity):
                 p = Point(x,y)
                 if self.golf_map.contains(p):
-                    self.logger.info((x,y))
+                    # self.logger.info((x,y))
                     self.grid.append(p)
 
     def risk_estimation(self, point, target, distance):
@@ -58,6 +58,7 @@ class Player:
         return risk
 
     def value_estimation(self, target):
+        ALPHA = ((-1/3) * (self.skill - 10) + 70) / 100
         not_visited = set([PolygonUtility.point_hash(p) for p in self.grid])
         def assign_value_est(t:Point, v):
             # generate a circle around the target
@@ -70,7 +71,10 @@ class Player:
                     # alpha(risk) + (1-alpha)(ve)
                     distance_to = point.distance(t)
                     ph = PolygonUtility.point_hash(point)
-                    value_estimate = self.risk_estimation(point, t, distance_to) + distance_to / 300 + 1 + v
+                    adjusted_value = distance_to / 300 + 1
+                    if ((1-ALPHA) * adjusted_value + v >= self.valueMap[ph]): 
+                        continue
+                    value_estimate = ALPHA * self.risk_estimation(point, t, distance_to) + (1 - ALPHA) * adjusted_value + v
                     if value_estimate < self.valueMap[ph]:
                         self.valueMap[ph] = value_estimate
                         self.graph[ph] = t
@@ -78,11 +82,8 @@ class Player:
                         not_visited.remove(ph)
                         coveredPoints.append((point, self.valueMap[ph]))
             return sorted(coveredPoints, key = lambda x: x[1])
-        ALPHA = 0.5
         best_locations = assign_value_est(target, 0)
         while len(best_locations) > 0:
-            print([(loc[0].x, loc[0].y, loc[1]) for loc in best_locations])
-            print()
             newBest = []
             self.logger.info(len(not_visited))
             for point, value in best_locations:
@@ -95,7 +96,6 @@ class Player:
         for key, value in sorted(self.graph.items(), key = lambda x: x[0]):
             self.logger.info((key, self.valueMap[key], PolygonUtility.point_hash(value)))
         '''
-
     def get_location_from_shot(self, distance, angle, curr_loc):
         # angle is in rads
         y_delta = distance * math.sin(angle) 
@@ -153,8 +153,6 @@ class Player:
         if not self.grid:
             self.create_grid(golf_map)
             self.value_estimation(Point(target.x, target.y))
-        self.logger.info(f'{len(self.grid)}, {len(self.graph)}')
-        
         curr_loc_point = Point(curr_loc.x, curr_loc.y)
         minDistance, minPoint = float('inf'), None
         for point in self.graph.keys():
