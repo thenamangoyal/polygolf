@@ -124,14 +124,34 @@ class Player:
         #to do add confidence bounds
         angle_2std = ((1/(2*self.skill)))
         distance_2std = (d/self.skill)
-        begin_line1 = (start_point.x + (d-distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d-distance_2std)*math.sin(angle -angle_2std ))
-        begin_line2 = (start_point.x + (d-distance_2std)*math.cos(angle + angle_2std), start_point.y + (d-distance_2std)*math.sin(angle + angle_2std))
-        end_line1 = (start_point.x + (d+(d*0.1)+distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d+(d*0.1)+distance_2std)*math.sin(angle - angle_2std))
-        end_line2 = (start_point.x + (d+(d*0.1)+distance_2std)*math.cos(angle + angle_2std ), start_point.y + (d+(d*0.1)+distance_2std)*math.sin(angle + angle_2std))
+        min_distance = d-distance_2std
+        max_distance = d+(d*0.1)+distance_2std
+        begin_line1 = (start_point.x + (min_distance)*math.cos(angle - angle_2std ), start_point.y + (min_distance)*math.sin(angle -angle_2std ))
+        begin_line2 = (start_point.x + (min_distance)*math.cos(angle + angle_2std), start_point.y + (min_distance)*math.sin(angle + angle_2std))
+        end_line1 = (start_point.x + (max_distance)*math.cos(angle - angle_2std ), start_point.y + (max_distance)*math.sin(angle - angle_2std))
+        end_line2 = (start_point.x + (max_distance)*math.cos(angle + angle_2std ), start_point.y + (max_distance)*math.sin(angle + angle_2std))
         L1 = LineString([Point(begin_line1), Point(end_line1)])
         L2 = LineString([Point(begin_line2), Point(end_line2)])
         check1 = L1.within(self.map_shapely)
         check2 = L2.within(self.map_shapely)
+        # xs=[]
+        # ys=[]
+        # step = 2*angle_2std/4
+        # angles = [angle - angle_2std +step , angle - angle_2std +2*step ,angle - angle_2std +3*step ]
+        # p = []
+        # for a in angles:
+        #     x = start_point.x + max_distance * math.cos(a)
+        #     y = start_point.y + max_distance * math.sin(a)
+        #     p.append(Point2D(x,y))
+
+        # for a in reversed(angles):
+        #     x = start_point.x + min_distance * math.cos(a)
+        #     y = start_point.y + min_distance * math.sin(a)
+        #     p.append(Point2D(x,y))
+        # contains =0
+        # for i in p:
+        #     if(self.point_inside_polygon(self.map.vertices, i)):
+        #         contains +=1
         if (check1 &   check2):
             return 1
         else:
