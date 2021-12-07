@@ -54,7 +54,7 @@ class Player:
         self.rows = None
         self.cols = None
         self.max_distance = 200 + skill
-        self.distances = [200 + skill, (200 + skill) / 2, (200 + skill) / 4]
+        self.distances = [200 + skill, (200 + skill) / 2, (200 + skill) / 4, (200 + skill)*0.9, (200 + skill)*0.8]
         self.angles = [0, np.pi / 6, np.pi / 4, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 3 * np.pi / 4, 5 * np.pi / 6, np.pi, 7 * np.pi / 6, 5 * np.pi / 4, 4 * np.pi / 3, 3 * np.pi / 2, 5 * np.pi / 3, 7 * np.pi / 4, 11 * np.pi / 6]
         self.path = None
         self.tmp = 'fire.txt'
@@ -115,7 +115,7 @@ class Player:
 
 
     def brushfire(self, q):
-        # print("starting brushfire")
+        print("starting brushfire")
         while(len(q) != 0):
             row, col, dist, waterPoint = q.popleft()
 
@@ -128,6 +128,13 @@ class Player:
                     if (pValue == -1) or (pValue > ndist): #either uninitialized or current distance is smaller
                         self.pmap[nRow, nCol] = ndist
                         q.append((nRow, nCol, ndist, waterPoint))
+
+    def get_polar(self, start, end): #converts from square to polar. Returns r, \theta
+        angle = sympy.atan2(end.y - start.y, end.x - start.x)
+        distance = start.distance(end)
+
+        return distance, angle
+
 
 
     def p_in_water(self,start, end):
@@ -150,13 +157,55 @@ class Player:
         else:
             return 0
 
+    def simulate_shot(self, distance, angle): #draws from normal distributions and returns r, theta
+        actual_distance = self.rng.normal(distance, distance / self.skill)
+        actual_angle = self.rng.normal(angle, 1 / (2 * self.skill))
+
+        return actual_distance, actual_angle
+
+    def on_land(self, points): #returns true if ALL points in the list points is on land
+        for p in points:
+            r, c = self.get_row_col(p.x, p.y)
+            if(self.in_bounds(r, c)):
+                if self.dmap[r, c] != 1:
+                    return False #in bounds but in water
+            else:
+                return False #out of bounds of dmap
+
+        return True #all points in bounds and on land
+
+    def p_in_water2(self, start, end):
+        d, angle = self.get_polar(start, end)
+        land_count = 0
+        runs = 50
+
+        for i in range(runs):
+            r, theta = self.simulate_shot(d, angle)
+            p1 = self.get_landing_point(start, r, theta) #landing point
+            p2 = self.get_landing_point(start, 1.05*r, theta) #halfway between
+            p3 = self.get_landing_point(start, 1.1*r, theta) #rolling point
+
+            if self.on_land([p1, p2, p3]):
+                land_count += 1
+
+        p_water = (runs - land_count)/runs
+        if p_water > 0.99:
+            p_water = 0.99
+
+        return p_water
+
+
+
+
+
     def expected_strokes(self, start, end):
-        ratio = self.p_in_water(start,end)
+        ratio = self.p_in_water2(start,end)
 
         return 1 + (ratio)/(1-ratio)
 
     
     def precompute(self):
+        print("starting precomputation")
         minx, miny, maxx, maxy = self.quick_map.bounds
         self.minx = minx
         self.miny = miny
@@ -204,14 +253,14 @@ class Player:
                     q.append((row,col,0, self.get_center(row, col))) #place edge in queue
 
         ### Commented out code saves precomputed brushfire map for testing purposes
-        # if os.path.exists(self.tmp):
-        #     with open(self.tmp, 'rb') as f:
-        #         self.pmap = np.load(f)
-        #         print("loaded from file")
-        #         return
+        if os.path.exists(self.tmp):
+            with open(self.tmp, 'rb') as f:
+                self.pmap = np.load(f)
+                print("loaded from file")
+                return
         self.brushfire(q)
-        # with open(self.tmp, 'wb') as f:
-        #     np.save(f, self.pmap)
+        with open(self.tmp, 'wb') as f:
+            np.save(f, self.pmap)
 
 
     # Generate potential branches for the A* searching algorithm
@@ -232,6 +281,7 @@ class Player:
         return li
 
     def a_star(self, start, target):
+        print("starting a star")
         count = 0
         secondCount = 0
         # print("starting a star")
