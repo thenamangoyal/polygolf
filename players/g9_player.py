@@ -181,14 +181,14 @@ class Player:
                     q.append((row,col,0, self.get_center(row, col))) #place edge in queue
 
         ### Commented out code saves precomputed brushfire map for testing purposes
-        # if os.path.exists(self.tmp):
-        #     with open(self.tmp, 'rb') as f:
-        #         self.pmap = np.load(f)
-        #         print("loaded from file")
-        #         return
+        if os.path.exists(self.tmp):
+            with open(self.tmp, 'rb') as f:
+                self.pmap = np.load(f)
+                print("loaded from file")
+                return
         self.brushfire(q)
-        # with open(self.tmp, 'wb') as f:
-        #     np.save(f, self.pmap)
+        with open(self.tmp, 'wb') as f:
+            np.save(f, self.pmap)
 
 
     # Generate potential branches for the A* searching algorithm
@@ -305,5 +305,7 @@ class Player:
 
         angle = sympy.atan2(pt.y - curr_loc.y, pt.x - curr_loc.x)
         distance = min(self.max_distance, s.distance(self.path[closestI + 1]))
+
+        distance = distance / 1.1
 
         return (distance, angle)
