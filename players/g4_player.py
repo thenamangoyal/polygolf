@@ -14,6 +14,7 @@ import pdb
 from collections import defaultdict
 import shapely.geometry
 import math
+import csv
 
 
 def get_distance(point1, point2):
@@ -44,7 +45,7 @@ class Player:
         # precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
         # # if doesn't depend on skill
         # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
-        
+
         # # precompute check
         # if os.path.isfile(precomp_path):
         #     # Getting back the objects:
@@ -86,7 +87,6 @@ class Player:
 
     def make_grid(self, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
                   curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D):
-
         poly = geometry.Polygon([p.x, p.y] for p in golf_map.vertices)
         target_shapely = geometry.Point(target[0], target[1])
 
@@ -94,11 +94,8 @@ class Player:
         list_of_lists = []
         list_of_distances = []
 
-        queue = []
-        dimension = 20
+        dimension = 60
         allowed_distance = (constants.max_dist + self.skill) / (1. + constants.extra_roll)
-        threshold = 20.0
-        amt = 1
         grid_of_scores = np.array(np.ones((dimension, dimension)) * 100)
 
         xmin = float(xmin)
@@ -128,7 +125,15 @@ class Player:
                 thedistance = target_shapely.distance(list_of_lists[x_index][y_index])
                 if (thedistance < allowed_distance) and water_grid[x_index][y_index]:
                     queue.append((x_index, y_index))
-                    grid_of_scores[x_index][y_index] = 1
+                    if thedistance < constants.min_putter_dist:
+                        grid_of_scores[x_index][y_index] = 1
+                    else:
+                        grid_of_scores[x_index][y_index] = 2
+
+        y_cell_size = list_of_lists[0][1].y - list_of_lists[0][0].y
+        x_cell_size = list_of_lists[1][0].x - list_of_lists[0][0].x
+        x_cell_range = int(allowed_distance / x_cell_size)+1
+        y_cell_range = int(allowed_distance / y_cell_size)+1
 
         while (len(queue) != 0):
 
@@ -136,8 +141,18 @@ class Player:
             # get all points that are < distance from elem
             elem_score = grid_of_scores[elem[0]][elem[1]]
             points_to_consider = []
-            for x_index in range(len(list_of_lists)):
-                for y_index in range(len(list_of_lists[0])):
+            x_index_start = 0 if elem[0] - x_cell_range < 0 else elem[0] - x_cell_range
+            x_index_end = len(list_of_lists) if elem[0] + x_cell_range + 1 > len(list_of_lists) else elem[0] + x_cell_range + 1
+            y_index_start = 0 if elem[1] - y_cell_range < 0 else elem[1] - y_cell_range
+            y_index_end = len(list_of_lists[0]) if elem[1] + y_cell_range + 1 > len(list_of_lists[0]) else elem[1] + y_cell_range + 1
+            '''
+            x_index_start = 0
+            x_index_end = len(list_of_lists)
+            y_index_start = 0
+            y_index_end = len(list_of_lists[0])
+            '''
+            for x_index in range(x_index_start, x_index_end):
+                for y_index in range(y_index_start, y_index_end):
                     elem_point = list_of_lists[elem[0]][elem[1]]
                     distance = elem_point.distance(list_of_lists[x_index][y_index])
                     if distance < allowed_distance:
@@ -149,6 +164,11 @@ class Player:
                         grid_of_scores[x_index][y_index] = elem_score + 1
                         queue.append(point)
         return grid_of_scores
+
+    def debug_grid(self, grid_of_scores):
+        with open("grid1.csv", "w") as f:
+            wr = csv.writer(f)
+            wr.writerows(grid_of_scores)
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
              curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D,
