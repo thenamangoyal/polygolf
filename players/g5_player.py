@@ -11,6 +11,12 @@ from shapely.ops import triangulate
 import math
 
 
+def line_in_polygon(point_a, point_b, polygon):
+    segment_land = LineString([point_a, point_b])
+    if_encloses = polygon.contains(segment_land)
+    return if_encloses
+
+
 def is_roll_in_polygon(point_a, distance, angle, polygon):
     curr_point = Point(point_a.x + distance * np.cos(angle),
                        point_a.y + distance * np.sin(angle))
@@ -19,8 +25,7 @@ def is_roll_in_polygon(point_a, distance, angle, polygon):
         point_a.y + (1.1) * distance * np.sin(angle))
 
     start = time()
-    segment_land = LineString([curr_point, final_point])
-    if_encloses = polygon.contains(segment_land)
+    if_encloses = line_in_polygon(curr_point, final_point, polygon)
     end = time()
     # print("line-time", end - start)
     #
@@ -50,6 +55,9 @@ def direct_distance_angle(curr_loc, target, skill):
 
 def search_points(curr_loc, target, polygon, skill, increment=25):
     distance, angle = direct_distance_angle(curr_loc, target, skill)
+    if distance < 20 and line_in_polygon(curr_loc, target, polygon):
+        return [LandingPoint(target, distance, angle, curr_loc, target)]
+
     points = []
     r = distance
     while r > 0:
@@ -156,7 +164,7 @@ class MultipleLandingPoints:
         return total
 
     def score(self, polygon, skill, rng):
-        return self.heuristic() + (self.confidence(polygon, skill, rng) * 100)
+        return (self.heuristic() + (self.confidence(polygon, skill, rng) * 100))/len(self.path)
 
     def add_point(self, polygon, skill, rng):
         last_point = self.path[-1]
