@@ -150,8 +150,8 @@ class Player:
         #is reachable
         if (np.linalg.norm(current_point - target_point) < max_dist):
             #is safe to land
-            if(Point2D(self.target).equals(Point2D(target_loc))):
-                return 1
+            #if(Point2D(self.target).equals(Point2D(target_loc))):
+                #return 1
             if (self.is_safe(required_dist,angle,Point2D(curr_loc))):
                 return 1
             else:
@@ -160,13 +160,15 @@ class Player:
         else:
             return 0
 
-    def adjacent_cells(self, point):
+    def adjacent_cells(self, point, closedSet):
+        neighbours = []
         if self.is_neighbour(point, self.target):
             print('target close!')
-            return [self.target]
-        neighbours = []
+            neighbours.append(self.target)
         for center in self.centers:
             if center.equals(Point2D(point)):
+                continue
+            if tuple(center) in closedSet:
                 continue
             if self.is_neighbour(point, center):
                 neighbours.append( tuple(center))
@@ -193,7 +195,7 @@ class Player:
                 return next_pointC.point
             openSet.remove(next_point)
             closedSet.add(next_point)
-            neighbours = self.adjacent_cells(next_point)
+            neighbours = self.adjacent_cells(next_point, closedSet)
             for n in neighbours :
                 if n not in closedSet:
                     cell = Cell(n, self.target, next_pointC.actual_cost +1 , next_pointC)
