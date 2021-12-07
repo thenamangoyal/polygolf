@@ -18,13 +18,83 @@ def is_roll_in_polygon(point_a, distance, angle, polygon):
         point_a.x + (1.1) * distance * np.cos(angle),
         point_a.y + (1.1) * distance * np.sin(angle))
 
+    start = time()
     segment_land = LineString([curr_point, final_point])
     if_encloses = polygon.contains(segment_land)
+    end = time()
+    # print("line-time", end - start)
+    #
+    # start = time()
+    # curr_point.within(polygon)
+    # final_point.within(polygon)
+    # end = time()
+    # print("points", end-start)
     return if_encloses
 
 
 def convert_sympy_shapely(point):
     return Point(point.x, point.y)
+
+
+def direct_distance_angle(curr_loc, target, skill):
+    required_dist = curr_loc.distance(target)
+    roll_factor = 1.1
+    if required_dist < 20:
+        roll_factor = 1.0
+    max_dist_traveled = 200 + skill
+    distance = min(max_dist_traveled, required_dist / roll_factor)
+    angle = math.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+
+    return distance, angle
+
+
+def search_points(curr_loc, target, polygon, skill, increment=25):
+    distance, angle = direct_distance_angle(curr_loc, target, skill)
+    points = []
+    r = distance
+    while r > 0:
+        semicircle_length = np.pi * r
+        num_sector = int(semicircle_length / increment)  # divide the semicircle into equally sized sectors
+        num_sector = num_sector if num_sector % 2 == 0 else num_sector + 1
+        if num_sector == 0:
+            r -= increment
+            continue
+        arc_length = semicircle_length / num_sector
+        angle_increment = np.pi / (2 * num_sector)
+        for i in range(0, int(num_sector) + 1):
+            new_angle = float(angle + (i * angle_increment))
+            point = Point(curr_loc.x + r * np.cos(new_angle),
+                          curr_loc.y + r * np.sin(new_angle))
+
+            if LandingPoint.is_on_land(point, polygon):
+                lp = LandingPoint(point, r, new_angle, curr_loc, target)
+                points.append(lp)
+            if i > 0:
+                new_angle = float(angle - (i * angle_increment))
+                point = Point(curr_loc.x + r * np.cos(new_angle),
+                              curr_loc.y + r * np.sin(new_angle))
+
+                if LandingPoint.is_on_land(point, polygon):
+                    lp = LandingPoint(point, r, new_angle, curr_loc, target)
+                    points.append(lp)
+        r -= increment
+
+    return points
+
+
+def search_landing_points(points, polygon, skill, rng):
+    largest_point = None
+    largest_point_score = -1 * float('inf')
+    for point in points:
+        start = time()
+        score = point.score(polygon, skill, rng)
+        end = time()
+        # print("time: ", end-start)
+        if score > largest_point_score:
+            largest_point = point
+            largest_point_score = score
+
+    return largest_point
 
 
 class LandingPoint(object):
@@ -70,6 +140,36 @@ class LandingPoint(object):
         # uses confidence and heuristic
         return self.heuristic() + (self.confidence(polygon, skill, rng) * 100)
 
+
+class MultipleLandingPoints:
+
+    def __init__(self, start_lp):
+        self.path = [start_lp]
+
+    def heuristic(self):
+        return self.path[-1].heuristic()
+
+    def confidence(self, polygon, skill, rng):
+        total = 1
+        for lp in self.path:
+            total *= lp.confidence(polygon, skill, rng)
+        return total
+
+    def score(self, polygon, skill, rng):
+        return self.heuristic() + (self.confidence(polygon, skill, rng) * 100)
+
+    def add_point(self, polygon, skill, rng):
+        last_point = self.path[-1]
+
+        landing_points = search_points(last_point.point, last_point.hole, polygon, skill)
+        next_point= search_landing_points(landing_points, polygon, skill, rng)
+        self.path.append(next_point)
+
+    def distance_to_hole(self):
+        last_point = self.path[-1]
+        return last_point.point.distance(last_point.hole)
+
+
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
         """Initialise the player with given skill.
@@ -83,64 +183,6 @@ class Player:
         self.rng = rng
         self.logger = logger
 
-    def direct_distance_angle(self, curr_loc, target):
-        required_dist = curr_loc.distance(target)
-        roll_factor = 1.1
-        if required_dist < 20:
-            roll_factor = 1.0
-        max_dist_traveled = 200 + self.skill
-        distance = min(max_dist_traveled, required_dist / roll_factor)
-        angle = math.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
-        print("d, a:", distance, angle)
-
-        return distance, angle
-
-    def search_points(self, curr_loc, target, polygon, increment=25):
-        distance, angle = self.direct_distance_angle(curr_loc, target)
-        points = []
-        r = distance
-        while r > 0:
-            semicircle_length = np.pi * r
-            num_sector = int(semicircle_length / increment)  # divide the semicircle into equally sized sectors
-            num_sector = num_sector if num_sector % 2 == 0 else num_sector + 1
-            if num_sector == 0:
-                r -= increment
-                continue
-            arc_length = semicircle_length / num_sector
-            angle_increment = np.pi / (2 * num_sector)
-            for i in range(0, int(num_sector) + 1):
-                new_angle = float(angle + (i * angle_increment))
-                point = Point(curr_loc.x + r * np.cos(new_angle),
-                              curr_loc.y + r * np.sin(new_angle))
-
-                if LandingPoint.is_on_land(point, polygon):
-                    lp = LandingPoint(point, r, new_angle, curr_loc, target)
-                    points.append(lp)
-                if i > 0:
-                    new_angle = float(angle - (i * angle_increment))
-                    point = Point(curr_loc.x + r * np.cos(new_angle),
-                                  curr_loc.y + r * np.sin(new_angle))
-
-                    if LandingPoint.is_on_land(point, polygon):
-                        lp = LandingPoint(point, r, new_angle, curr_loc, target)
-                        points.append(lp)
-            r -= increment
-
-        return points
-
-    def search_landing_points(self, points, polygon, skill, rng):
-        largest_point = None
-        largest_point_score = -1 * float('inf')
-        for point in points:
-            start = time()
-            score = point.score(polygon, skill, rng)
-            end = time()
-            # print("time: ", end-start)
-            if score > largest_point_score:
-                largest_point = point
-                largest_point_score = score
-
-        return largest_point.distance_from_origin, largest_point.angle_from_origin
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
              curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D,
@@ -165,7 +207,11 @@ class Player:
 
         curr_loc = convert_sympy_shapely(curr_loc)
         target = convert_sympy_shapely(target)
-        print((curr_loc.x, curr_loc.y), (target.x, target.y))
-        landing_points = self.search_points(curr_loc, target, self.shapely_polygon)
-        print([(l.point.x, l.point.y) for l in landing_points])
-        return self.search_landing_points(landing_points, self.shapely_polygon, self.skill, self.rng)
+        landing_points = search_points(curr_loc, target, self.shapely_polygon, self.skill)
+
+        paths = [MultipleLandingPoints(lp) for lp in landing_points]
+        for path in paths:
+            if path.distance_to_hole() > 20:
+                path.add_point(self.shapely_polygon, self.skill, self.rng)
+        largest_point = search_landing_points(paths, self.shapely_polygon, self.skill, self.rng)
+        return largest_point.path[0].distance_from_origin, largest_point.path[0].angle_from_origin
