@@ -53,7 +53,7 @@ def direct_distance_angle(curr_loc, target, skill):
     return distance, angle
 
 
-def search_points(curr_loc, target, polygon, skill, increment=25):
+def generate_points(curr_loc, target, polygon, skill, increment=25):
     distance, angle = direct_distance_angle(curr_loc, target, skill)
     if distance < 20 and line_in_polygon(curr_loc, target, polygon):
         return [LandingPoint(target, distance, angle, curr_loc, target)]
@@ -169,9 +169,10 @@ class MultipleLandingPoints:
     def add_point(self, polygon, skill, rng):
         last_point = self.path[-1]
 
-        landing_points = search_points(last_point.point, last_point.hole, polygon, skill)
+        landing_points = generate_points(last_point.point, last_point.hole, polygon, skill)
         next_point= search_landing_points(landing_points, polygon, skill, rng)
-        self.path.append(next_point)
+        if next_point:
+            self.path.append(next_point)
 
     def distance_to_hole(self):
         last_point = self.path[-1]
@@ -215,7 +216,7 @@ class Player:
 
         curr_loc = convert_sympy_shapely(curr_loc)
         target = convert_sympy_shapely(target)
-        landing_points = search_points(curr_loc, target, self.shapely_polygon, self.skill)
+        landing_points = generate_points(curr_loc, target, self.shapely_polygon, self.skill)
 
         paths = [MultipleLandingPoints(lp) for lp in landing_points]
         for path in paths:
