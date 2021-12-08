@@ -49,10 +49,13 @@ def splash_zone(distance: float, angle: float, conf: float, skill: int, current_
     max_distance = distances[-1]*scale
     top_arc = spread_points(current_point, angles, max_distance, False)
 
-    min_distance = distances[0]
-    bottom_arc = spread_points(current_point, angles, min_distance, True)
+    if distance > 20:
+        min_distance = distances[0]
+        bottom_arc = spread_points(current_point, angles, min_distance, True)
+        return np.concatenate((top_arc, bottom_arc, np.array([top_arc[0]])))
 
-    return np.concatenate((top_arc, bottom_arc, np.array([top_arc[0]])))
+    current_point = np.array([current_point])
+    return np.concatenate((current_point, top_arc, current_point))
 
 
 def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
@@ -129,7 +132,10 @@ class ScoredPoint:
         return self.point == other.point
     
     def __hash__(self):
-        return hash(self.point)
+        prev = None
+        if self.previous:
+            prev = self.previous.point
+        return hash((self.point, self.actual_cost, prev))
     
     def __repr__(self):
         return f"ScoredPoint(point = {self.point}, h_cost = {self.h_cost})"
@@ -224,7 +230,6 @@ class Player:
         heap = [ScoredPoint(curr_loc, point_goal, 0.0)]
         start_point = heap[0].point
         # Used to cache the best cost and avoid adding useless points to the heap
-        best_cost = {tuple(curr_loc): 0.0}
         visited = set()
         while len(heap) > 0:
             next_sp = heapq.heappop(heap)
@@ -251,9 +256,7 @@ class Player:
                 goal_dist = goal_dists[i]
                 new_point = ScoredPoint(candidate_point, point_goal, next_sp.actual_cost + 1, next_sp,
                                         goal_dist=goal_dist)
-                if candidate_point not in best_cost or best_cost[candidate_point] > new_point.actual_cost:
-                    best_cost[candidate_point] = new_point.actual_cost
-                    heapq.heappush(heap, new_point)
+                heapq.heappush(heap, new_point)
 
         # No path available
         return None
@@ -304,7 +307,7 @@ class Player:
         confidence = 0.95
         cl = float(curr_loc.x), float(curr_loc.y)
         while target_point is None:
-            if confidence <= 0.0:
+            if confidence <= 0.5:
                 return None
 
             # print(f"searching with {confidence} confidence")
@@ -317,9 +320,9 @@ class Player:
             dist = np.linalg.norm(np.array(target_point) - current_point)
             v = np.array(target_point) - current_point
             u = v / dist
-            if dist * 1.10 > 20.0:
-                pass
-                max_offset = dist * 1 / 1.10
+            if dist >= 20.0:
+                roll_distance = dist / 10
+                max_offset = roll_distance
                 offset = 0
                 prev_target = target_point
                 while offset < max_offset and self.splash_zone_within_polygon(tuple(current_point), target_point, confidence):
@@ -328,8 +331,6 @@ class Player:
                     prev_target = target_point
                     target_point = current_point + u * dist
                 target_point = prev_target
-            else:
-                target_point = current_point + u * dist * 1.10
 
         cx, cy = current_point
         tx, ty = target_point

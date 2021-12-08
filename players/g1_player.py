@@ -10,7 +10,9 @@ import math
 import matplotlib.pyplot as plt
 import constants
 import heapq
-
+from matplotlib.path import Path
+from shapely.geometry import Polygon as ShapelyPolygon, Point as ShapelyPoint
+from scipy.spatial.distance import cdist
 
 
 class Cell:
@@ -74,6 +76,12 @@ class Player:
         self.turns = 0
         self.map = None
         self.map_shapely =None
+        self.initial_path = []
+        self.max_distance = 0
+        self.mpl_poly =None
+        self.np_map_points = None
+        self.np_goal_dist = 0
+
     def point_inside_polygon(self,poly, p) -> bool:
     # http://paulbourke.net/geometry/polygonmesh/#insidepoly
         n = len(poly)
@@ -89,11 +97,20 @@ class Player:
         return inside
         
     def segmentize_map(self, golf_map ):
+        x_min, y_min = float('inf'), float('inf')
+        x_max, y_max = float('-inf'), float('-inf')
+        for point in golf_map.vertices:
+            x = float(point.x)
+            y = float(point.y)
+            x_min = min(x, x_min)
+            x_max = max(x, x_max)
+            y_min = min(y, y_min)
+            y_max = max(y, y_max)
         area_length = 5
-        beginx = area_length/2
-        beginy = area_length/2
-        endx = constants.vis_width
-        endy = constants.vis_height
+        beginx = x_min
+        beginy = y_min
+        endx = x_max
+        endy = y_max
         node_centers = []
         node_centers2 =[]   
         for i in range(int(beginx), int(endx), area_length):
@@ -111,51 +128,65 @@ class Player:
         self.centers = node_centers
         self.centers2 = node_centers2
 
-    def sector(self, center, start_angle, end_angle, radius):
-        def polar_point(origin_point, angle,  distance):
-            return [origin_point.x + math.sin(math.radians(angle)) * distance, origin_point.y + math.cos(math.radians(angle)) * distance]
-        steps=10
-        if start_angle > end_angle:
-            t = start_angle
-            start_angle = end_angle
-            end_angle = t
-        else:
-            pass
-        step_angle_width = (end_angle-start_angle) / steps
-        sector_width = (end_angle-start_angle) 
-        segment_vertices = []
-        segment_vertices.append(polar_point(center, 0,0))
-        segment_vertices.append(polar_point(center, start_angle,radius))
-        for z in range(1, steps):
-            segment_vertices.append((polar_point(center, start_angle + z * step_angle_width,radius)))
-        segment_vertices.append(polar_point(center, start_angle+sector_width,radius))
-        #print(segment_vertices)
-        return Polygon(segment_vertices)
+   
+    def _initialize_map_points(self, goal: Tuple[float, float]):
+        # Storing the points as numpy array
+        np_map_points = [goal]
+        map_points = [goal]
+        v = self.map.vertices
+        v.append(v[0])
+        self.mpl_poly = Path(v, closed=True)
+        pp = self.centers
+        for point in pp:
+            if self.mpl_poly.contains_point(point):
+                # map_points.append(point)
+                x, y = point
+                np_map_points.append(np.array([x, y]))
+        # self.map_points = np.array(map_points)
+        self.np_map_points = np.array(np_map_points)
+        self.np_goal_dist = cdist(self.np_map_points, np.array([np.array(self.target)]), 'euclidean')
+        self.np_goal_dist.flatten()
 
-    def positionSafety(self, d, angle, start_point):
+    def numpy_adjacent_and_dist(self, point: Tuple[float, float]):
+        cloc_distances = cdist(self.np_map_points, np.array([np.array(point)]), 'euclidean')
+        cloc_distances = cloc_distances.flatten()
+        distance_mask = cloc_distances <= self.max_distance
+        reachable_points = self.np_map_points[distance_mask]
+        goal_distances = self.np_goal_dist[distance_mask]
+        return reachable_points, goal_distances
 
-        #CIRCLE of radiues = 2 standand deviations
-        angle_2std = math.degrees((1/(2*self.skill)))
-        distance_2std = (d/self.skill)
-        center = start_point
-        #print("end "+ angle - angle_2std)
-        sector1 = self.sector(center, angle + angle_2std, angle - angle_2std, d - distance_2std)
-        sector2 = self.sector(center, angle + angle_2std, angle - angle_2std, d + distance_2std )       
-        #area_inside_the_polygon =  ((probable_landing_region.intersection(shape_map_work.buffer(0))).area)/probable_landing_region.area
-        return (area_inside_the_polygon==1)
-        
-    def is_safe(self, d, angle, start_point):
+    def is_safe(self, d, angle, start_point,confidence_level=1):
         #to do add confidence bounds
-        angle_2std = ((1/(2*self.skill)))
-        distance_2std = (d/self.skill)
-        begin_line1 = (start_point.x + (d-distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d-distance_2std)*math.sin(angle -angle_2std ))
-        begin_line2 = (start_point.x + (d-distance_2std)*math.cos(angle + angle_2std), start_point.y + (d-distance_2std)*math.sin(angle + angle_2std))
-        end_line1 = (start_point.x + (d+(d*0.1)+distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d+(d*0.1)+distance_2std)*math.sin(angle - angle_2std))
-        end_line2 = (start_point.x + (d+(d*0.1)+distance_2std)*math.cos(angle + angle_2std ), start_point.y + (d+(d*0.1)+distance_2std)*math.sin(angle + angle_2std))
+        angle_2std = ((1/(self.skill)))*(confidence_level)
+        distance_2std = (d/self.skill)*(confidence_level)
+        min_distance = d-distance_2std
+        max_distance = d+(d*0.1)+distance_2std
+        begin_line1 = (start_point.x + (min_distance)*math.cos(angle - angle_2std ), start_point.y + (min_distance)*math.sin(angle -angle_2std ))
+        begin_line2 = (start_point.x + (min_distance)*math.cos(angle + angle_2std), start_point.y + (min_distance)*math.sin(angle + angle_2std))
+        end_line1 = (start_point.x + (max_distance)*math.cos(angle - angle_2std ), start_point.y + (max_distance)*math.sin(angle - angle_2std))
+        end_line2 = (start_point.x + (max_distance)*math.cos(angle + angle_2std ), start_point.y + (max_distance)*math.sin(angle + angle_2std))
         L1 = LineString([Point(begin_line1), Point(end_line1)])
         L2 = LineString([Point(begin_line2), Point(end_line2)])
         check1 = L1.within(self.map_shapely)
         check2 = L2.within(self.map_shapely)
+        # xs=[]
+        # ys=[]
+        # step = 2*angle_2std/4
+        # angles = [angle - angle_2std +step , angle - angle_2std +2*step ,angle - angle_2std +3*step ]
+        # p = []
+        # for a in angles:
+        #     x = start_point.x + max_distance * math.cos(a)
+        #     y = start_point.y + max_distance * math.sin(a)
+        #     p.append(Point2D(x,y))
+
+        # for a in reversed(angles):
+        #     x = start_point.x + min_distance * math.cos(a)
+        #     y = start_point.y + min_distance * math.sin(a)
+        #     p.append(Point2D(x,y))
+        # contains =0
+        # for i in p:
+        #     if(self.point_inside_polygon(self.map.vertices, i)):
+        #         contains +=1
         if (check1 &   check2):
             return 1
         else:
@@ -174,8 +205,8 @@ class Player:
         #is reachable
         if (np.linalg.norm(current_point - target_point) < max_dist):
             #is safe to land
-            if(Point2D(self.target).equals(Point2D(target_loc))):
-                return 1
+            #if(Point2D(self.target).equals(Point2D(target_loc))):
+                #return 1
             if (self.is_safe(required_dist,angle,Point2D(curr_loc))):
                 return 1
             else:
@@ -184,20 +215,35 @@ class Player:
         else:
             return 0
 
-    def adjacent_cells(self, point):
+    def adjacent_cells(self, point, closedSet):
+        current_point = np.array(point).astype(float)
+        nei , dis = self.numpy_adjacent_and_dist(current_point)
         if self.is_neighbour(point, self.target):
             print('target close!')
-            return [self.target]
-        neighbours = []
-        for center in self.centers:
-            if center.equals(Point2D(point)):
-                continue
-            if self.is_neighbour(point, center):
-                neighbours.append( tuple(center))
-        return neighbours
+            yield (self.target)
+        for i in nei:
+            n = np.array(i).astype(float)
+            required_dist = np.linalg.norm(current_point - np.array(n).astype(float))
+            angle = sympy.atan2(n[1] - current_point[1], n[0] - current_point[0])
+            if (self.is_safe(required_dist,angle,Point2D(point))):
+                yield tuple(i)
+
+        # neighbours = []
+        # if self.is_neighbour(point, self.target):
+        #     print('target close!')
+        #     yield (self.target)
+        # for center in self.centers:
+        #     if center.equals(Point2D(point)):
+        #         continue
+        #     if tuple(center) in closedSet:
+        #         continue
+        #     if self.is_neighbour(point, center):
+        #         neighbours.append( tuple(center))
+        #         yield tuple(center)
 
   
     def aStar( self, current, end):
+        self.initial_path =[]
         cur_loc = tuple(current)
         current = Cell(cur_loc, self.target, 0.0 , cur_loc )
         openSet = set()
@@ -207,17 +253,20 @@ class Player:
         closedSet = set()
         openSet.add(cur_loc)
         openHeap.append(current)
-        while openSet:
+        while len(openHeap)>0:
             next_pointC = heapq.heappop(openHeap)
             next_point = next_pointC.point
+            print(next_point)
             #reached the goal
             if np.linalg.norm(np.array(self.target).astype(float) - np.array(next_point).astype(float)) <= 5.4 / 100.0:
                 while next_pointC.previous.point != cur_loc:
+                    self.initial_path.append(next_pointC.point)
                     next_pointC = next_pointC.previous
+                self.initial_path.reverse()
                 return next_pointC.point
             openSet.remove(next_point)
             closedSet.add(next_point)
-            neighbours = self.adjacent_cells(next_point)
+            neighbours = self.adjacent_cells(next_point, closedSet)
             for n in neighbours :
                 if n not in closedSet:
                     cell = Cell(n, self.target, next_pointC.actual_cost +1 , next_pointC)
@@ -253,17 +302,41 @@ class Player:
             self.map = golf_map
             shape_map = golf_map.vertices 
             self.map_shapely = Polygon(shape_map)
-        
-        
-        next_point = self.aStar(curr_loc, target )
-        required_dist = curr_loc.distance(next_point)
-        angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
-        #angle2  = math.degrees(angle)
-        #a =  self.positionSafety( distance, angle2, curr_loc.evalf(), golf_map)
-        if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
-            if(required_dist>20):
-                required_dist = 0.9*required_dist
+            self.max_distance = 200 + self.skill
+            self._initialize_map_points(np.array(tuple(target)).astype(float))
+        if(self.turns>0):
+            next_point = self.initial_path[0] if len(self.initial_path)>0 else self.target
+            print(next_point)
+            if len(self.initial_path)>0:
+                del self.initial_path[0]
+            required_dist = curr_loc.distance(next_point)
+            print(required_dist)
+            angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
+            if (self.is_safe(required_dist,angle,curr_loc) and required_dist<=200+self.skill):
+                self.turns = self.turns +1  
+                if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
+                    if(required_dist>20):
+                        required_dist = 0.9*required_dist
+                return (required_dist, angle)
+            else:
+                next_point = self.aStar(curr_loc, target )
+                required_dist = curr_loc.distance(next_point)
+                angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
+                if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
+                    if(required_dist>20):
+                        required_dist = 0.9*required_dist
 
-        self.turns = self.turns +1  
-        print(next_point)
-        return (required_dist, angle)
+                self.turns = self.turns +1  
+                return (required_dist, angle)
+        else:
+            next_point = self.aStar(curr_loc, target )
+            print(next_point[0])
+            required_dist = curr_loc.distance(next_point)
+            angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
+            if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
+                if(required_dist>20):
+                    required_dist = 0.9*required_dist
+
+            self.turns = self.turns +1  
+            print(next_point)
+            return (required_dist, angle)
