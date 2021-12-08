@@ -147,4 +147,10 @@ results/
 
 # Default gen map path
 maps/temp.json
+<<<<<<< HEAD
 *.yml
+=======
+
+# Precomputation
+precomp/
+>>>>>>> 9a2e3c39ed3abcef5970310a14ad9f23fa28a486
