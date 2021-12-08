@@ -369,7 +369,7 @@ class Player:
                                                         new_nodes.append(stop_point)
                                         hyp = hyp / 3
         #if (self.skill < 80 and len(list(self.shapely_poly.exterior.coords)) > 20):
-        if (len(new_nodes) > 400):
+        if (len(new_nodes) > 300):
             mod = round(len(new_nodes)/(300 - len(self.graph.keys())))
             new_nodes = new_nodes[::mod]
         for node in new_nodes:
