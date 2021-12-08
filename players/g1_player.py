@@ -8,7 +8,9 @@ import math
 import matplotlib.pyplot as plt
 import constants
 import heapq
-
+from matplotlib.path import Path
+from shapely.geometry import Polygon as ShapelyPolygon, Point as ShapelyPoint
+from scipy.spatial.distance import cdist
 
 
 class Cell:
@@ -51,6 +53,11 @@ class Player:
         self.map = None
         self.map_shapely =None
         self.initial_path = []
+        self.max_distance = 0
+        self.mpl_poly =None
+        self.np_map_points = None
+        self.np_goal_dist = 0
+
     def point_inside_polygon(self,poly, p) -> bool:
     # http://paulbourke.net/geometry/polygonmesh/#insidepoly
         n = len(poly)
@@ -98,7 +105,32 @@ class Player:
         self.centers2 = node_centers2
 
    
-        
+    def _initialize_map_points(self, goal: Tuple[float, float]):
+        # Storing the points as numpy array
+        np_map_points = [goal]
+        map_points = [goal]
+        v = self.map.vertices
+        v.append(v[0])
+        self.mpl_poly = Path(v, closed=True)
+        pp = self.centers
+        for point in pp:
+            if self.mpl_poly.contains_point(point):
+                # map_points.append(point)
+                x, y = point
+                np_map_points.append(np.array([x, y]))
+        # self.map_points = np.array(map_points)
+        self.np_map_points = np.array(np_map_points)
+        self.np_goal_dist = cdist(self.np_map_points, np.array([np.array(self.target)]), 'euclidean')
+        self.np_goal_dist.flatten()
+
+    def numpy_adjacent_and_dist(self, point: Tuple[float, float]):
+        cloc_distances = cdist(self.np_map_points, np.array([np.array(point)]), 'euclidean')
+        cloc_distances = cloc_distances.flatten()
+        distance_mask = cloc_distances <= self.max_distance
+        reachable_points = self.np_map_points[distance_mask]
+        goal_distances = self.np_goal_dist[distance_mask]
+        return reachable_points, goal_distances
+
     def is_safe(self, d, angle, start_point,confidence_level=1):
         #to do add confidence bounds
         angle_2std = ((1/(2*self.skill)))*(confidence_level)
@@ -160,18 +192,30 @@ class Player:
             return 0
 
     def adjacent_cells(self, point, closedSet):
-        neighbours = []
+        current_point = np.array(point).astype(float)
+        nei , dis = self.numpy_adjacent_and_dist(current_point)
         if self.is_neighbour(point, self.target):
             print('target close!')
             yield (self.target)
-        for center in self.centers:
-            if center.equals(Point2D(point)):
-                continue
-            if tuple(center) in closedSet:
-                continue
-            if self.is_neighbour(point, center):
-                neighbours.append( tuple(center))
-                yield tuple(center)
+        for i in nei:
+            n = np.array(i).astype(float)
+            required_dist = np.linalg.norm(current_point - np.array(n).astype(float))
+            angle = sympy.atan2(n[1] - current_point[1], n[0] - current_point[0])
+            if (self.is_safe(required_dist,angle,Point2D(point))):
+                yield tuple(i)
+
+        # neighbours = []
+        # if self.is_neighbour(point, self.target):
+        #     print('target close!')
+        #     yield (self.target)
+        # for center in self.centers:
+        #     if center.equals(Point2D(point)):
+        #         continue
+        #     if tuple(center) in closedSet:
+        #         continue
+        #     if self.is_neighbour(point, center):
+        #         neighbours.append( tuple(center))
+        #         yield tuple(center)
 
   
     def aStar( self, current, end):
@@ -234,6 +278,8 @@ class Player:
             self.map = golf_map
             shape_map = golf_map.vertices 
             self.map_shapely = Polygon(shape_map)
+            self.max_distance = 200 + self.skill
+            self._initialize_map_points(np.array(tuple(target)).astype(float))
         if(self.turns>0):
             next_point = self.initial_path[0] if len(self.initial_path)>0 else self.target
             print(next_point)
