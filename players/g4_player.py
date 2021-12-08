@@ -265,14 +265,13 @@ class Player:
         if curr_expected_score > smallest_score:
             max_possible_score = curr_expected_score - 0.5
 
-        # print("max_possible_score", max_possible_score)
         smallest_score_points = dict()
         for point, value in sorted_points_score.items():
             if value <= max_possible_score:
                 smallest_score_points[point] = (value, get_distance(target, point))
 
         closest2target_points = dict(sorted(smallest_score_points.items(), key=lambda x: (x[1][0], x[1][1])))
-        # print("chosen points", closest2target_points)
+
         safe_point = None
         unsafe_points2score = dict()
         for point in closest2target_points.keys():
@@ -347,9 +346,9 @@ class Player:
         # if there are many ways to go, delete the points that can go back
         middle_points = []
         for i, middle_point in enumerate(temp_middle_points):
-            expected_score = self.get_expected_score(self.point_dict, middle_point)
-            if expected_score > max_possible_score:
-                continue
+            # expected_score = self.get_expected_score(self.point_dict, middle_point)
+            # if expected_score > max_possible_score:
+            #     continue
 
             curr_to_mid_quadranty, curr_to_mid_quadrantx = middle_point.y - curr_loc.y, middle_point.x - curr_loc.x
             if curr_to_mid_quadranty * quadranty < 0 or curr_to_mid_quadrantx * quadrantx < 0:
