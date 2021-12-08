@@ -420,8 +420,8 @@ class Player:
         dist_deviation = distance/self.skill
         angle_deviation = 2/(2*self.skill)
 
-        max_dist = (distance + dist_deviation)*1.1
-        min_dist = (distance - dist_deviation)*1.1
+        max_dist = (distance + dist_deviation)
+        min_dist = (distance - dist_deviation)/1.1
         max_angle = angle + angle_deviation
         min_angle = angle - angle_deviation
 
@@ -431,11 +431,24 @@ class Player:
         p6 = sg.Point2(start[0]+(max_dist)*math.cos(min_angle), start[1]+(max_dist)*math.sin(min_angle))
         p3 = sg.Point2(start[0]+(min_dist)*math.cos(max_angle), start[1]+(min_dist)*math.sin(max_angle))
         p5 = sg.Point2(start[0]+(min_dist)*math.cos(min_angle), start[1]+(min_dist)*math.sin(min_angle))
-      
-        if p1 in [p2, p3, p4, p5, p6] or p2 in [p3, p4, p5, p6] or p3 in [p4, p5, p6] or p4 in [p5, p6] or p5 == p6:
+        points = [p1]
+        if p2 not in points:
+            points.append(p2)
+        if p3 not in points:
+            points.append(p3)
+        if p4 not in points:
+            points.append(p4)
+        if p5 not in points:
+            points.append(p5)
+        if p6 not in points:
+            points.append(p6)
+
+        #if p1 in [p2, p3, p4, p5, p6] or p2 in [p3, p4, p5, p6] or p3 in [p4, p5, p6] or p4 in [p5, p6] or p5 == p6:   
+        #    return 1
+        if len(points) < 3:
             return 1
-        
-        cone = sg.Polygon([p1, p2, p3, p4, p5, p6])
+        #print(len(points))
+        cone = sg.Polygon(points)
         cone_area = cone.area()
 
         intersect = sg.boolean_set.intersect(cone, self.scikit_poly)
@@ -446,7 +459,8 @@ class Player:
             for hole in poly.holes:
                 final_area -= hole.area()
         
-        
+        #print("Calculated")
+        #print(final_area/cone_area)
         return final_area/cone_area
     
     def BFS(self, target, tolerance):
@@ -558,6 +572,12 @@ class Player:
             if m == "default":
                 continue
             score = m[2]/m[1]
+            print("score")
+            print(score)
+            print("risk")
+            print(m[2])
+            print("Path Length")
+            print(m[1])
             if score >= max_score:
                 max_score = score
                 move = m[0]
@@ -566,12 +586,12 @@ class Player:
             roll_factor = 1.0
 
         if move == "default":
-            # print("******default******")
+            #print("******default******")
             distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
             angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
             return (distance, angle)
 
-        distance = curr_loc.distance(move) / roll_factor
+        distance = curr_loc.distance(move)/roll_factor
         angle = sympy.atan2(move.y - curr_loc.y, move.x - curr_loc.x)
         # distance = sympy.Min(200 + self.skill, required_dist / roll_factor)
         # angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
