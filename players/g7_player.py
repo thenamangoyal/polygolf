@@ -126,10 +126,9 @@ class Player:
                     break
                 newBest.extend(assign_value_est(point, value))
             best_locations = sorted(newBest, key = lambda x: x[1])
-        self.logger.info('graph:')
-        for key, value in sorted(self.graph.items(), key = lambda x: x[0]):
-            # self.logger.info((key, self.valueMap[key], PolygonUtility.point_hash(value)))
-            pass
+        # self.logger.info('graph:')
+        # for key, value in sorted(self.graph.items(), key = lambda x: x[0]):
+        #   self.logger.info((key, self.valueMap[key], PolygonUtility.point_hash(value)))
             
     def get_location_from_shot(self, distance, angle, curr_loc):
         # angle is in rads
