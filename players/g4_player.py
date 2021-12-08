@@ -376,7 +376,10 @@ class Player:
         unsafe_points = sorted(unsafe_points2score.items(), key=lambda x: -x[1])
         safe_point_2 = unsafe_points[0][0]
         safe_point_max_succ_times_2 = unsafe_points[0][1]
-        quadrant = (safe_point_2.y - curr_loc.y, safe_point_2.x - curr_loc.x)
+        if safe_point_max_succ_times_2 == 0:
+            quadrant = None
+        else:
+            quadrant = (safe_point_2.y - curr_loc.y, safe_point_2.x - curr_loc.x)
         desire_distance_2 = get_distance(curr_loc, safe_point_2)
         desire_angle_2 = sympy.atan2(safe_point_2.y - curr_loc.y, safe_point_2.x - curr_loc.x)
         self.logger.info(str(self.turn) + "reach unsafe state")
