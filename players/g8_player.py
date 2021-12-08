@@ -57,7 +57,6 @@ class Player:
         """
 
         self.current_loc = np.array([float(curr_loc.x), float(curr_loc.y)])
-        # print(target)
         # init golf map polygon
         if score == 1:
             self.target = np.array([float(target.x), float(target.y)])
@@ -98,7 +97,6 @@ class Player:
             for angle in np.linspace(target_angle-self.angle_offset, target_angle+self.angle_offset, num=self.n_angles):
                 
                 conf = self.est_shot_conf(distance, angle)
-                # print(distance, angle, conf)
                 
                 p = self.np_curr_loc + distance * np.array([np.cos(angle), np.sin(angle)])
                 
@@ -265,7 +263,6 @@ class Player:
                         t = k / (n_points_on_diag+1)
                         p = (1-t)*a + t*b
                         nodes.append(tuple(p))
-
         return nodes
 
     def get_path(self):
@@ -278,7 +275,7 @@ class Player:
             val = (node1[0]-node2[0])**2 + (node1[1]-node2[1])**2
             if val > max_dist:
                 return float('inf')
-            return val
+            return sqrt(val)
             
         #find shortest path between nodes
         graph = Graph()
