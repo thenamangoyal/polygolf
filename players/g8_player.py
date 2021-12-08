@@ -12,7 +12,7 @@ import heapq
 from dijkstar import Graph, find_path
 
 class Player:
-    def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
+    def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger, golf_map: sympy.Polygon, start: sympy.geometry.Point2D, target: sympy.geometry.Point2D, map_path: str, precomp_dir: str) -> None:
         """Initialise the player with given skill.
         Args:
             skill (int): skill of your player
