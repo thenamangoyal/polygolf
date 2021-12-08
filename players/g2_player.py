@@ -49,10 +49,13 @@ def splash_zone(distance: float, angle: float, conf: float, skill: int, current_
     max_distance = distances[-1]*scale
     top_arc = spread_points(current_point, angles, max_distance, False)
 
-    min_distance = distances[0]
-    bottom_arc = spread_points(current_point, angles, min_distance, True)
+    if distance > 20:
+        min_distance = distances[0]
+        bottom_arc = spread_points(current_point, angles, min_distance, True)
+        return np.concatenate((top_arc, bottom_arc, np.array([top_arc[0]])))
 
-    return np.concatenate((top_arc, bottom_arc, np.array([top_arc[0]])))
+    current_point = np.array([current_point])
+    return np.concatenate((current_point, top_arc, current_point))
 
 
 def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
@@ -251,9 +254,7 @@ class Player:
                 goal_dist = goal_dists[i]
                 new_point = ScoredPoint(candidate_point, point_goal, next_sp.actual_cost + 1, next_sp,
                                         goal_dist=goal_dist)
-                if candidate_point not in best_cost or best_cost[candidate_point] > new_point.actual_cost:
-                    best_cost[candidate_point] = new_point.actual_cost
-                    heapq.heappush(heap, new_point)
+                heapq.heappush(heap, new_point)
 
         # No path available
         return None
