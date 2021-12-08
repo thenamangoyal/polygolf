@@ -99,10 +99,10 @@ class Player:
 
    
         
-    def is_safe(self, d, angle, start_point):
+    def is_safe(self, d, angle, start_point,confidence_level=1):
         #to do add confidence bounds
-        angle_2std = ((1/(self.skill)))
-        distance_2std = (d/self.skill)
+        angle_2std = ((1/(2*self.skill)))*(confidence_level)
+        distance_2std = (d/self.skill)*(confidence_level)
         min_distance = d-distance_2std
         max_distance = d+(d*0.1)+distance_2std
         begin_line1 = (start_point.x + (min_distance)*math.cos(angle - angle_2std ), start_point.y + (min_distance)*math.sin(angle -angle_2std ))
