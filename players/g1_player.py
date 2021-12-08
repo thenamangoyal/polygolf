@@ -157,8 +157,9 @@ class Player:
 
     def is_safe(self, d, angle, start_point,confidence_level=1):
         #to do add confidence bounds
-        angle_2std = ((1/(self.skill)))*(confidence_level)
-        distance_2std = (d/self.skill)*(confidence_level)
+        denumerator =0
+        angle_2std = ((1/(2*self.skill)))*(confidence_level)
+        distance_2std = (0.9*d/self.skill)*(confidence_level)
         min_distance = d-distance_2std
         max_distance = d+(d*0.1)+distance_2std
         begin_line1 = (start_point.x + (min_distance)*math.cos(angle - angle_2std ), start_point.y + (min_distance)*math.sin(angle -angle_2std ))
@@ -187,7 +188,8 @@ class Player:
         # for i in p:
         #     if(self.point_inside_polygon(self.map.vertices, i)):
         #         contains +=1
-        if (check1 &   check2):
+        return 1
+        if (check1 & check2):
             return 1
         else:
             return 0
@@ -264,15 +266,15 @@ class Player:
                     next_pointC = next_pointC.previous
                 self.initial_path.reverse()
                 return next_pointC.point
-            openSet.remove(next_point)
+            #openSet.remove(next_point)
             closedSet.add(next_point)
             neighbours = self.adjacent_cells(next_point, closedSet)
             for n in neighbours :
                 if n not in closedSet:
                     cell = Cell(n, self.target, next_pointC.actual_cost +1 , next_pointC)
-                    if n not in openSet and (next_pointC.actual_cost +1 <=10 - self.turns):
-                        if (n not in node_dict or cell.total_cost() < node_dict(n)):
-                            openSet.add(n)
+                    if (next_pointC.actual_cost +1 <=10 - self.turns):
+                        #if (n not in node_dict or cell.total_cost() < node_dict(n)):
+                            #openSet.add(n)
                             node_dict[n] = cell.total_cost()
                             heapq.heappush(openHeap, cell )
         return []
