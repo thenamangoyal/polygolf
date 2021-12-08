@@ -124,14 +124,34 @@ class Player:
         #to do add confidence bounds
         angle_2std = ((1/(2*self.skill)))
         distance_2std = (d/self.skill)
-        begin_line1 = (start_point.x + (d-distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d-distance_2std)*math.sin(angle -angle_2std ))
-        begin_line2 = (start_point.x + (d-distance_2std)*math.cos(angle + angle_2std), start_point.y + (d-distance_2std)*math.sin(angle + angle_2std))
-        end_line1 = (start_point.x + (d+(d*0.1)+distance_2std)*math.cos(angle - angle_2std ), start_point.y + (d+(d*0.1)+distance_2std)*math.sin(angle - angle_2std))
-        end_line2 = (start_point.x + (d+(d*0.1)+distance_2std)*math.cos(angle + angle_2std ), start_point.y + (d+(d*0.1)+distance_2std)*math.sin(angle + angle_2std))
+        min_distance = d-distance_2std
+        max_distance = d+(d*0.1)+distance_2std
+        begin_line1 = (start_point.x + (min_distance)*math.cos(angle - angle_2std ), start_point.y + (min_distance)*math.sin(angle -angle_2std ))
+        begin_line2 = (start_point.x + (min_distance)*math.cos(angle + angle_2std), start_point.y + (min_distance)*math.sin(angle + angle_2std))
+        end_line1 = (start_point.x + (max_distance)*math.cos(angle - angle_2std ), start_point.y + (max_distance)*math.sin(angle - angle_2std))
+        end_line2 = (start_point.x + (max_distance)*math.cos(angle + angle_2std ), start_point.y + (max_distance)*math.sin(angle + angle_2std))
         L1 = LineString([Point(begin_line1), Point(end_line1)])
         L2 = LineString([Point(begin_line2), Point(end_line2)])
         check1 = L1.within(self.map_shapely)
         check2 = L2.within(self.map_shapely)
+        # xs=[]
+        # ys=[]
+        # step = 2*angle_2std/4
+        # angles = [angle - angle_2std +step , angle - angle_2std +2*step ,angle - angle_2std +3*step ]
+        # p = []
+        # for a in angles:
+        #     x = start_point.x + max_distance * math.cos(a)
+        #     y = start_point.y + max_distance * math.sin(a)
+        #     p.append(Point2D(x,y))
+
+        # for a in reversed(angles):
+        #     x = start_point.x + min_distance * math.cos(a)
+        #     y = start_point.y + min_distance * math.sin(a)
+        #     p.append(Point2D(x,y))
+        # contains =0
+        # for i in p:
+        #     if(self.point_inside_polygon(self.map.vertices, i)):
+        #         contains +=1
         if (check1 &   check2):
             return 1
         else:
@@ -150,8 +170,8 @@ class Player:
         #is reachable
         if (np.linalg.norm(current_point - target_point) < max_dist):
             #is safe to land
-            if(Point2D(self.target).equals(Point2D(target_loc))):
-                return 1
+            #if(Point2D(self.target).equals(Point2D(target_loc))):
+                #return 1
             if (self.is_safe(required_dist,angle,Point2D(curr_loc))):
                 return 1
             else:
@@ -160,13 +180,15 @@ class Player:
         else:
             return 0
 
-    def adjacent_cells(self, point):
+    def adjacent_cells(self, point, closedSet):
+        neighbours = []
         if self.is_neighbour(point, self.target):
             print('target close!')
-            return [self.target]
-        neighbours = []
+            neighbours.append(self.target)
         for center in self.centers:
             if center.equals(Point2D(point)):
+                continue
+            if tuple(center) in closedSet:
                 continue
             if self.is_neighbour(point, center):
                 neighbours.append( tuple(center))
@@ -193,7 +215,7 @@ class Player:
                 return next_pointC.point
             openSet.remove(next_point)
             closedSet.add(next_point)
-            neighbours = self.adjacent_cells(next_point)
+            neighbours = self.adjacent_cells(next_point, closedSet)
             for n in neighbours :
                 if n not in closedSet:
                     cell = Cell(n, self.target, next_pointC.actual_cost +1 , next_pointC)
