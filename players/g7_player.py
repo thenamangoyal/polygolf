@@ -77,7 +77,7 @@ class Player:
 
         risk_object_area = risk_object.area
         land_area = self.golf_map.intersection(risk_object).area
-        risk = 1 - round((land_area/risk_object_area), 7)
+        risk = 1 / (round((land_area/risk_object_area), 7) + 1e-7)
 
         return risk
 
@@ -95,7 +95,8 @@ class Player:
                     # alpha(risk) + (1-alpha)(ve)
                     distance_to = point.distance(t)
                     ph = PolygonUtility.point_hash(point)
-                    adjusted_value = distance_to / 300 + 1
+                    # Reward is inversely proportional to distance, with an upper limit of 2
+                    adjusted_value = min(2, (200 + self.skill)/distance_to)
                     if ((1-ALPHA) * adjusted_value + v >= self.valueMap[ph]): 
                         continue
                     value_estimate = ALPHA * self.risk_estimation(point, t, distance_to) + (1 - ALPHA) * adjusted_value + v
