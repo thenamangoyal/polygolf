@@ -99,7 +99,14 @@ class GolfGame:
         self.next_player = self.__assign_next_player()
 
         if self.use_gui:
-            start(GolfApp, address=args.address, port=args.port, start_browser=not(args.no_browser), update_interval=0.5, userdata=(self, args.automatic, self.logger))
+            config = dict()
+            config["address"] = args.address
+            config["start_browser"] = not(args.no_browser)
+            config["update_interval"] = 0.5
+            config["userdata"] = (self, args.automatic, self.logger)
+            if args.port != -1:
+                config["port"] = args.port
+            start(GolfApp, **config)
         else:
             self.logger.debug("No GUI flag specified")
 
@@ -132,17 +139,21 @@ class GolfGame:
                     base_player_name = "Group {}".format(player_name)
                 count_used[player_name] += 1
                 if player_count[player_name] == 1:
-                    self.__add_player(player_class, "{}".format(base_player_name))
+                    self.__add_player(player_class, "{}".format(base_player_name), base_player_name=base_player_name)
                 else:
-                    self.__add_player(player_class, "{}.{}".format(base_player_name, count_used[player_name]))
+                    self.__add_player(player_class, "{}.{}".format(base_player_name, count_used[player_name]), base_player_name=base_player_name)
             else:
                 self.logger.error("Failed to insert player {} since invalid player name provided.".format(player_name))
 
-    def __add_player(self, player_class, player_name):
+    def __add_player(self, player_class, player_name, base_player_name):
         if player_name not in self.player_names:
             skill = self.rng.integers(constants.min_skill, constants.max_skill+1)
             self.logger.info("Adding player {} from class {} with skill {}".format(player_name, player_class.__module__, skill))
-            player = player_class(skill, self.rng, self.__get_player_logger(player_name))
+            precomp_dir = os.path.join("precomp", base_player_name)
+            if not os.path.isdir(precomp_dir):
+                os.makedirs(precomp_dir)
+            player_map_path = slugify(self.golf.map_filepath)
+            player = player_class(skill=skill, rng=self.rng, logger=self.__get_player_logger(player_name), golf_map=self.golf.golf_map.copy(), start=self.golf.start.copy(), target=self.golf.target.copy(), map_path=player_map_path, precomp_dir=precomp_dir)
             self.players.append(player)
             self.player_names.append(player_name)
             self.skills.append(skill)
