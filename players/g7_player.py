@@ -77,14 +77,13 @@ class Player:
 
         risk_object_area = risk_object.area
         land_area = self.golf_map.intersection(risk_object).area
-        risk = 1 - round((land_area/risk_object_area), 7)
-
-        return risk
+        risk = 1 / round((land_area/risk_object_area), 7)
+        return risk - 1
 
     def value_estimation(self, target):
         ALPHA = ((-1/3) * (self.skill - 10) + 70) / 100
         not_visited = set([PolygonUtility.point_hash(p) for p in self.grid])
-        def assign_value_est(t:Point, v):
+        def assign_value_est(t:Point, v, isTarget = False):
             # generate a circle around the target
             circle = Point(t.x, t.y).buffer(200 + self.skill)
             coveredPoints = []
@@ -94,6 +93,9 @@ class Player:
                 if tgs and possible_distance: 
                     # alpha(risk) + (1-alpha)(ve)
                     distance_to = point.distance(t)
+                    if isTarget and distance_to < 20:
+                        # check if putt is possible
+                        pass
                     ph = PolygonUtility.point_hash(point)
                     adjusted_value = distance_to / 300 + 1
                     if ((1-ALPHA) * adjusted_value + v >= self.valueMap[ph]): 
