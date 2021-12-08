@@ -15,6 +15,7 @@ from players.g2_player import Player as G2_Player
 from players.g3_player import Player as G3_Player
 from players.g4_player import Player as G4_Player
 from players.g5_player import Player as G5_Player
+from players.g6_player import Player as G6_Player
 from players.g7_player import Player as G7_Player
 from players.g8_player import Player as G8_Player
 from players.g9_player import Player as G9_Player
@@ -98,14 +99,7 @@ class GolfGame:
         self.next_player = self.__assign_next_player()
 
         if self.use_gui:
-            config = dict()
-            config["address"] = args.address
-            config["start_browser"] = not(args.no_browser)
-            config["update_interval"] = 0.5
-            config["userdata"] = (self, args.automatic, self.logger)
-            if args.port != -1:
-                config["port"] = args.port
-            start(GolfApp, **config)
+            start(GolfApp, address=args.address, port=args.port, start_browser=not(args.no_browser), update_interval=0.5, userdata=(self, args.automatic, self.logger))
         else:
             self.logger.debug("No GUI flag specified")
 
@@ -138,21 +132,17 @@ class GolfGame:
                     base_player_name = "Group {}".format(player_name)
                 count_used[player_name] += 1
                 if player_count[player_name] == 1:
-                    self.__add_player(player_class, "{}".format(base_player_name), base_player_name=base_player_name)
+                    self.__add_player(player_class, "{}".format(base_player_name))
                 else:
-                    self.__add_player(player_class, "{}.{}".format(base_player_name, count_used[player_name]), base_player_name=base_player_name)
+                    self.__add_player(player_class, "{}.{}".format(base_player_name, count_used[player_name]))
             else:
                 self.logger.error("Failed to insert player {} since invalid player name provided.".format(player_name))
 
-    def __add_player(self, player_class, player_name, base_player_name):
+    def __add_player(self, player_class, player_name):
         if player_name not in self.player_names:
-            skill = 60 # self.rng.integers(constants.min_skill, constants.max_skill+1)
+            skill = self.rng.integers(constants.min_skill, constants.max_skill+1)
             self.logger.info("Adding player {} from class {} with skill {}".format(player_name, player_class.__module__, skill))
-            precomp_dir = os.path.join("precomp", base_player_name)
-            if not os.path.isdir(precomp_dir):
-                os.makedirs(precomp_dir)
-            player_map_path = slugify(self.golf.map_filepath)
-            player = player_class(skill=skill, rng=self.rng, logger=self.__get_player_logger(player_name), golf_map=self.golf.golf_map.copy(), start=self.golf.start.copy(), target=self.golf.target.copy(), map_path=player_map_path, precomp_dir=precomp_dir)
+            player = player_class(skill, self.rng, self.__get_player_logger(player_name))
             self.players.append(player)
             self.player_names.append(player_name)
             self.skills.append(skill)
@@ -442,7 +432,7 @@ class GolfGame:
             reached_target = False
 
         admissible = False
-        if self.golf.golf_map.encloses(segment_land) and not self.golf.golf_map.intersection(segment_land):
+        if self.golf.golf_map.encloses(segment_land):
             admissible = True
             observed_final_point = final_point
             observed_landing_point = landing_point
