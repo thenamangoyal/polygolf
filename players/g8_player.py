@@ -34,9 +34,9 @@ class Player:
         self.shapely_polygon = None
 
         self.n_distances = 20
-        self.n_angles = 40
+        self.n_angles = 45
 
-        self.angle_offset = pi*0.75
+        self.angle_offset = pi
 
         self.perc_of_path_comp = 0
 
@@ -72,7 +72,7 @@ class Player:
                     px = int(self.origin[0]+i)
                     py = int(self.origin[1]+j)
                     self.in_polygon[i][j] = self.shapely_polygon.contains(Point(px, py))
-
+            
             self.map = golf_map
             path = self.get_path()
 
@@ -157,7 +157,7 @@ class Player:
 
         return (k1 * conf) * (k2 * (perc_of_path_comp - self.perc_of_path_comp)) / (k3 * dist_to_line+0.00001), perc_of_path_comp
 
-    def est_shot_conf(self, distance: float, angle: float, n_tries: int = 60):
+    def est_shot_conf(self, distance: float, angle: float, n_tries: int = 50):
         start_time = time()
         n_valid = 0
 
@@ -199,7 +199,7 @@ class Player:
                 np.copyto(landing_point, self.np_curr_loc)
                 np.copyto(final_point, self.np_curr_loc)
 
-            if self.line_segment_in_polygon(landing_point, final_point, n_points_on_seg=5):
+            if self.line_segment_in_polygon(landing_point, final_point, n_points_on_seg=4):
                 n_valid += 1
 
         # t = time() - start_time
@@ -243,7 +243,7 @@ class Player:
             np.copyto(b,golf_map.vertices[j], casting='unsafe')
 
             # points along edges
-            n_points_on_edge = 7
+            n_points_on_edge = 5
             for k in range(1,n_points_on_edge+1):
                 t = k / (n_points_on_edge+1)
                 p = (1-t)*a + t*b
@@ -260,7 +260,7 @@ class Player:
                 p2 = (1-t)*a + t*b
 
                 if self.line_segment_in_polygon(p1, p2, n_points_on_seg=10, exact=True):
-                    n_points_on_diag = 3
+                    n_points_on_diag = 2
                     for k in range(1,n_points_on_diag+1):
                         t = k / (n_points_on_diag+1)
                         p = (1-t)*a + t*b
@@ -273,22 +273,21 @@ class Player:
         self.nodes.append((self.target[0], self.target[1])) # add target to nodes
         self.nodes.append((self.current_loc[0], self.current_loc[1]))
 
+        max_dist = (200 + self.skill)**2
         def distance(node1,node2):
-            val = np.linalg.norm(np.array([float(node1[0]), float(node1[1])])-np.array([float(node2[0]), float(node2[1])]))
-            if val > 200 + self.skill:
+            val = (node1[0]-node2[0])**2 + (node1[1]-node2[1])**2
+            if val > max_dist:
                 return float('inf')
             return val
             
-
         #find shortest path between nodes
         graph = Graph()
 
         for i in range(len(self.nodes)):
-            for j in range(len(self.nodes)):
-                if i == j:
-                    continue
-
-                graph.add_edge(self.nodes[i], self.nodes[j], distance(self.nodes[i],self.nodes[j]))
+            for j in range(i+1,len(self.nodes)):
+                d = distance(self.nodes[i],self.nodes[j])
+                graph.add_edge(self.nodes[i], self.nodes[j], d)
+                graph.add_edge(self.nodes[j], self.nodes[i], d)
 
         path = find_path(graph, (self.current_loc[0], self.current_loc[1]), (self.target[0], self.target[1]))
         return path
