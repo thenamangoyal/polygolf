@@ -132,7 +132,10 @@ class ScoredPoint:
         return self.point == other.point
     
     def __hash__(self):
-        return hash(self.point)
+        prev = None
+        if self.previous:
+            prev = self.previous.point
+        return hash((self.point, self.actual_cost, prev))
     
     def __repr__(self):
         return f"ScoredPoint(point = {self.point}, h_cost = {self.h_cost})"
@@ -227,7 +230,6 @@ class Player:
         heap = [ScoredPoint(curr_loc, point_goal, 0.0)]
         start_point = heap[0].point
         # Used to cache the best cost and avoid adding useless points to the heap
-        best_cost = {tuple(curr_loc): 0.0}
         visited = set()
         while len(heap) > 0:
             next_sp = heapq.heappop(heap)
@@ -305,7 +307,7 @@ class Player:
         confidence = 0.95
         cl = float(curr_loc.x), float(curr_loc.y)
         while target_point is None:
-            if confidence <= 0.0:
+            if confidence <= 0.5:
                 return None
 
             # print(f"searching with {confidence} confidence")
