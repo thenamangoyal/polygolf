@@ -12,6 +12,7 @@ class GolfMap:
         self.logger.info("Map file loaded: {}".format(map_filepath))
         with open(map_filepath, "r") as f:
             json_obj = json.load(f)
+        self.map_filepath = map_filepath
         self.start = sympy.geometry.Point2D(*json_obj["start"])
         self.target = sympy.geometry.Point2D(*json_obj["target"])
         self.golf_map = sympy.Polygon(*json_obj["map"])
