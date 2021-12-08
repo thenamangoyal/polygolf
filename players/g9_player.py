@@ -4,7 +4,7 @@ import numpy as np
 import sympy
 import logging
 from typing import Tuple
-import shapely
+import shapely.geometry
 import random
 from matplotlib import pyplot as plt
 from collections import deque
@@ -32,22 +32,10 @@ class Player:
         # # if doesn't depend on skill
         # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
         
-        # # precompute check
-        # if os.path.isfile(precomp_path):
-        #     # Getting back the objects:
-        #     with open(precomp_path, "rb") as f:
-        #         self.obj0, self.obj1, self.obj2 = pickle.load(f)
-        # else:
-        #     # Compute objects to store
-        #     self.obj0, self.obj1, self.obj2 = _
-
-        #     # Dump the objects
-        #     with open(precomp_path, 'wb') as f:
-        #         pickle.dump([self.obj0, self.obj1, self.obj2], f)
         self.skill = skill
         self.rng = rng
         self.logger = logger
-        self.quick_map = None
+        self.quick_map = shapely.geometry.Polygon([(p.x,p.y) for p in golf_map.vertices])
         self.dmap = None
         self.pmap = None
         self.cell_width = 1
@@ -56,8 +44,30 @@ class Player:
         self.max_distance = 200 + skill -.001
         self.distances = [self.max_distance*0.1, self.max_distance*0.2,self.max_distance*0.3, self.max_distance*0.4,self.max_distance*0.5, self.max_distance*0.6,self.max_distance*0.7, self.max_distance*0.8,self.max_distance*0.9, self.max_distance]
         self.angles = [0, np.pi / 6, np.pi / 4, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 3 * np.pi / 4, 5 * np.pi / 6, np.pi, 7 * np.pi / 6, 5 * np.pi / 4, 4 * np.pi / 3, 3 * np.pi / 2, 5 * np.pi / 3, 7 * np.pi / 4, 11 * np.pi / 6]
-        self.path = None
-        self.tmp = 'fire.txt'
+
+        minx, miny, maxx, maxy = self.quick_map.bounds
+        self.minx = minx
+        self.miny = miny
+
+        width = maxx - minx
+        height = maxy - miny
+        self.cols = int(np.ceil(width / self.cell_width))
+        self.rows = int(np.ceil(height / self.cell_width))
+        self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy - self.cell_width / 2)
+
+        precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
+        # precompute check
+        if os.path.isfile(precomp_path):
+            # Getting back the objects:
+            with open(precomp_path, "rb") as f:
+                self.dmap = pickle.load(f)
+        else:
+            # Compute objects to store
+            self.precompute()
+
+            # Dump the objects
+            with open(precomp_path, 'wb') as f:
+                pickle.dump(self.dmap, f)
         
     def get_landing_point(self, curr_loc: shapely.geometry.Point, distance: float, angle: float):
         """
@@ -115,7 +125,6 @@ class Player:
 
 
     def brushfire(self, q):
-        print("starting brushfire")
         while(len(q) != 0):
             row, col, dist, waterPoint = q.popleft()
 
@@ -205,25 +214,20 @@ class Player:
 
     
     def precompute(self):
-        print("starting precomputation")
-        minx, miny, maxx, maxy = self.quick_map.bounds
-        self.minx = minx
-        self.miny = miny
+        # minx, miny, maxx, maxy = self.quick_map.bounds
+        # self.minx = minx
+        # self.miny = miny
 
-
-        testpt = shapely.geometry.Point(50,160)
-
-        width = maxx - minx
-        height = maxy - miny
-        self.cols = int(np.ceil(width / self.cell_width))
-        self.rows = int(np.ceil(height / self.cell_width))
-        self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy - self.cell_width / 2)
+        # width = maxx - minx
+        # height = maxy - miny
+        # self.cols = int(np.ceil(width / self.cell_width))
+        # self.rows = int(np.ceil(height / self.cell_width))
+        # self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy - self.cell_width / 2)
 
         self.dmap = np.zeros((self.rows, self.cols), dtype=np.int8)
-        self.pmap = np.zeros((self.rows, self.cols), dtype=np.int8)
+        # self.pmap = np.zeros((self.rows, self.cols), dtype=np.int8)
 
 
-        q = deque() #used for brushfire
 
         for row in range(self.rows):
             for col in range(self.cols):
@@ -239,28 +243,24 @@ class Player:
                 if land == 4:
                     # if all four points on land, then set dmap to 1
                     self.dmap[row, col] = 1
-                    self.pmap[row, col] = -1
 
                 elif water == 4:
                     # if all four points on water, then set dmap to 0
                     self.dmap[row, col] = 0
-                    self.pmap[row, col] = -1
 
                 else:
                     # in else ==> some points on land, some in water ==> we are on an edge cell
-                    self.pmap[row, col] = 0
                     self.dmap[row, col] = 0
-                    q.append((row,col,0, self.get_center(row, col))) #place edge in queue
 
         ### Commented out code saves precomputed brushfire map for testing purposes
-        if os.path.exists(self.tmp):
-            with open(self.tmp, 'rb') as f:
-                self.pmap = np.load(f)
-                print("loaded from file")
-                return
-        #self.brushfire(q)
-        with open(self.tmp, 'wb') as f:
-            np.save(f, self.pmap)
+        # if os.path.exists(self.tmp):
+        #     with open(self.tmp, 'rb') as f:
+        #         self.pmap = np.load(f)
+        #         print("loaded from file")
+        #         return
+        # #self.brushfire(q)
+        # with open(self.tmp, 'wb') as f:
+        #     np.save(f, self.pmap)
 
 
     # Generate potential branches for the A* searching algorithm
@@ -281,7 +281,7 @@ class Player:
         return li
 
     def a_star(self, start, target):
-        print("starting a star")
+        # print("starting a star")
         count = 0
         secondCount = 0
         # print("starting a star")
@@ -344,19 +344,6 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        if not self.quick_map:
-            self.quick_map = shapely.geometry.Polygon([(p.x,p.y) for p in golf_map.vertices])
-            self.precompute()
-
-        #if not self.path:
-         #   s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
-          #  t = shapely.geometry.Point(target.x, target.y)
-           # self.path = self.a_star(s, t)
-
-        # for p in self.path:
-        #     print(p.x, p.y)
-        #     print()
-        # print(self.path)
 
         # Testing
         count = 0
@@ -364,9 +351,14 @@ class Player:
 
         s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
         t = shapely.geometry.Point(target.x, target.y)
+
+        # Within goal
         if s.distance(t) <= self.max_distance:
             angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
-            distance = s.distance(t)
+            if s.distance(t) < 20:
+                distance = s.distance(t)
+            else:
+                distance = s.distance(t) / 1.1
             return (distance, angle)
         else:
             s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
