@@ -15,7 +15,6 @@ from players.g2_player import Player as G2_Player
 from players.g3_player import Player as G3_Player
 from players.g4_player import Player as G4_Player
 from players.g5_player import Player as G5_Player
-from players.g6_player import Player as G6_Player
 from players.g7_player import Player as G7_Player
 from players.g8_player import Player as G8_Player
 from players.g9_player import Player as G9_Player
@@ -147,7 +146,7 @@ class GolfGame:
 
     def __add_player(self, player_class, player_name, base_player_name):
         if player_name not in self.player_names:
-            skill = self.rng.integers(constants.min_skill, constants.max_skill+1)
+            skill = 60 # self.rng.integers(constants.min_skill, constants.max_skill+1)
             self.logger.info("Adding player {} from class {} with skill {}".format(player_name, player_class.__module__, skill))
             precomp_dir = os.path.join("precomp", base_player_name)
             if not os.path.isdir(precomp_dir):
