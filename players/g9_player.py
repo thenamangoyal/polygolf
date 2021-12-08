@@ -1,23 +1,76 @@
+import os
+import pickle
 import numpy as np
 import sympy
 import logging
 from typing import Tuple
+import shapely.geometry
+import random
+from matplotlib import pyplot as plt
+from collections import deque
+import math
+from queue import PriorityQueue
+import heapq
+from heapq import heappush, heappop
 
 class Player:
-    def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
+    def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger, golf_map: sympy.Polygon, start: sympy.geometry.Point2D, target: sympy.geometry.Point2D, map_path: str, precomp_dir: str) -> None:
         """Initialise the player with given skill.
 
         Args:
             skill (int): skill of your player
             rng (np.random.Generator): numpy random number generator, use this for same player behvior across run
             logger (logging.Logger): logger use this like logger.info("message")
+            golf_map (sympy.Polygon): Golf Map polygon
+            start (sympy.geometry.Point2D): Start location
+            target (sympy.geometry.Point2D): Target location
+            map_path (str): File path to map
+            precomp_dir (str): Directory path to store/load precomputation
         """
+        # # if depends on skill
+        # precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
+        # # if doesn't depend on skill
+        # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
+        
         self.skill = skill
         self.rng = rng
         self.logger = logger
+        self.quick_map = shapely.geometry.Polygon([(p.x,p.y) for p in golf_map.vertices])
+        self.dmap = None
+        self.pmap = None
+        self.cell_width = 1
+        self.rows = None
+        self.cols = None
+        self.max_distance = 200 + skill -.001
+        self.distances = [self.max_distance*0.1, self.max_distance*0.2,self.max_distance*0.3, self.max_distance*0.4,self.max_distance*0.5, self.max_distance*0.6,self.max_distance*0.7, self.max_distance*0.8,self.max_distance*0.9, self.max_distance]
+        self.angles = [0, np.pi / 6, np.pi / 4, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 3 * np.pi / 4, 5 * np.pi / 6, np.pi, 7 * np.pi / 6, 5 * np.pi / 4, 4 * np.pi / 3, 3 * np.pi / 2, 5 * np.pi / 3, 7 * np.pi / 4, 11 * np.pi / 6]
+
+        minx, miny, maxx, maxy = self.quick_map.bounds
+        self.minx = minx
+        self.miny = miny
+
+        width = maxx - minx
+        height = maxy - miny
+        self.cols = int(np.ceil(width / self.cell_width))
+        self.rows = int(np.ceil(height / self.cell_width))
+        self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy - self.cell_width / 2)
+
+        precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
+        # precompute check
+        if os.path.isfile(precomp_path):
+            # Getting back the objects:
+            with open(precomp_path, "rb") as f:
+                self.dmap = pickle.load(f)
+        else:
+            # Compute objects to store
+            self.precompute()
+
+            # Dump the objects
+            with open(precomp_path, 'wb') as f:
+                pickle.dump(self.dmap, f)
         
-    def get_landing_point(self, curr_loc: sympy.geometry.Point2D, distance: float, angle: float):
-    	"""
+    def get_landing_point(self, curr_loc: shapely.geometry.Point, distance: float, angle: float):
+        """
     	    Args:
     	        curr_loc (sympy.geometry.Point2D): current location
     	        distance (float): The distance to next potential landing point
@@ -25,8 +78,257 @@ class Player:
     	    Returns:
     	        the potential landing point as a sympy.Point2D object
     	"""
-    	return sympy.Point2D(curr_loc.x + distance * sympy.cos(angle), curr_loc.y + distance * sympy.sin(angle))
+        return shapely.geometry.Point(curr_loc.x + distance * np.cos(angle), curr_loc.y + distance * np.sin(angle))
 
+    
+    def get_center(self, r: int, c: int):
+        x = self.zero_center.x + c * self.cell_width
+        y = self.zero_center.y - r * self.cell_width
+        return shapely.geometry.Point(x, y)
+
+    def get_row_col(self, x, y): #will return row, col closest to point (if within dmap)
+        c = round((x - self.zero_center.x)/self.cell_width)
+        r = round((self.zero_center.y - y)/self.cell_width)
+
+        return r, c
+
+    def get_corners(self, r: int, c: int):
+        center = self.get_center(r,c)
+        offset = self.cell_width / 2
+        x = center.x
+        y = center.y
+        upper_left = shapely.geometry.Point(x - offset, y + offset)
+        upper_right = shapely.geometry.Point(x + offset, y + offset)
+        lower_left = shapely.geometry.Point(x - offset, y - offset)
+        lower_right = shapely.geometry.Point(x + offset, y - offset)
+        return [upper_left, upper_right, lower_left, lower_right]
+
+    def in_bounds(self, row, col):
+        if row >= 0 and col >=0 and row < self.rows and col < self.cols:
+            return True
+        return False
+
+    def get_neighbors(self, row, col):
+        neighbors_list = []
+        for i in range(-1,2):
+            for j in range(-1,2):
+                if i == 0 and j == 0:
+                    continue
+                neighborRow = row + i
+                neighborCol = col + j
+
+                if self.in_bounds(neighborRow, neighborCol):
+                    neighbors_list.append((neighborRow, neighborCol))
+
+        return neighbors_list
+
+
+
+    def brushfire(self, q):
+        while(len(q) != 0):
+            row, col, dist, waterPoint = q.popleft()
+
+            neighbors_list = self.get_neighbors(row, col)
+            for nRow, nCol in neighbors_list:
+                if self.dmap[nRow][nCol] == 1: #is on land
+                    nCenter = self.get_center(nRow, nCol)
+                    ndist = nCenter.distance(waterPoint) #distance from neighbor to water
+                    pValue = self.pmap[nRow, nCol]
+                    if (pValue == -1) or (pValue > ndist): #either uninitialized or current distance is smaller
+                        self.pmap[nRow, nCol] = ndist
+                        q.append((nRow, nCol, ndist, waterPoint))
+
+    def get_polar(self, start, end): #converts from square to polar. Returns r, \theta
+        angle = sympy.atan2(end.y - start.y, end.x - start.x)
+        distance = start.distance(end)
+
+        return distance, angle
+
+
+
+    def p_in_water(self,start, end):
+        d = start.distance(end)
+        sigma = d/self.skill
+        r, c = self.get_row_col(end.x, end.y)
+        dw = self.pmap[r, c] #distance to water for end point
+        alpha = dw/sigma #number of standard deviations to water for end point
+        if 1 - alpha > 0.999:
+            alpha = 0.001
+
+        if alpha <= 1:
+            p = 1 - (1.848*math.exp(-1/alpha))
+            if 1 - p < 0.001:
+                return 0.999
+            else:
+                return p
+        elif alpha < 2:
+            return 1 - (0.68 + 0.27*(1- alpha))
+        else:
+            return 0
+
+    def simulate_shot(self, distance, angle): #draws from normal distributions and returns r, theta
+        actual_distance = self.rng.normal(distance, distance / self.skill)
+        actual_angle = self.rng.normal(angle, 1 / (2 * self.skill))
+
+        return actual_distance, actual_angle
+
+    def on_land(self, points): #returns true if ALL points in the list points is on land
+        for p in points:
+            r, c = self.get_row_col(p.x, p.y)
+            if(self.in_bounds(r, c)):
+                if self.dmap[r, c] != 1:
+                    return False #in bounds but in water
+            else:
+                return False #out of bounds of dmap
+
+        return True #all points in bounds and on land
+
+    def p_in_water2(self, start, end):
+        d, angle = self.get_polar(start, end)
+        land_count = 0
+        runs = 50
+
+        for i in range(runs):
+            r, theta = self.simulate_shot(d, angle)
+            p1 = self.get_landing_point(start, r, theta) #landing point
+            p2 = self.get_landing_point(start, 1.05*r, theta) #halfway between
+            p3 = self.get_landing_point(start, 1.1*r, theta) #rolling point
+
+            if self.on_land([p1, p2, p3]):
+                land_count += 1
+
+        p_water = (runs - land_count)/runs
+        if p_water > 0.99:
+            p_water = 0.99
+
+        return p_water
+
+
+
+
+
+    def expected_strokes(self, start, end):
+        ratio = self.p_in_water2(start,end)
+
+        return 1 + (ratio)/(1-ratio)
+
+    
+    def precompute(self):
+        # minx, miny, maxx, maxy = self.quick_map.bounds
+        # self.minx = minx
+        # self.miny = miny
+
+        # width = maxx - minx
+        # height = maxy - miny
+        # self.cols = int(np.ceil(width / self.cell_width))
+        # self.rows = int(np.ceil(height / self.cell_width))
+        # self.zero_center = shapely.geometry.Point(minx + self.cell_width / 2, maxy - self.cell_width / 2)
+
+        self.dmap = np.zeros((self.rows, self.cols), dtype=np.int8)
+        # self.pmap = np.zeros((self.rows, self.cols), dtype=np.int8)
+
+
+
+        for row in range(self.rows):
+            for col in range(self.cols):
+                corners = self.get_corners(row, col)
+                water = 0
+                land = 0
+                for point in corners:
+                    if self.quick_map.contains(point):
+                        land += 1
+                    else:
+                        water += 1
+
+                if land == 4:
+                    # if all four points on land, then set dmap to 1
+                    self.dmap[row, col] = 1
+
+                elif water == 4:
+                    # if all four points on water, then set dmap to 0
+                    self.dmap[row, col] = 0
+
+                else:
+                    # in else ==> some points on land, some in water ==> we are on an edge cell
+                    self.dmap[row, col] = 0
+
+        ### Commented out code saves precomputed brushfire map for testing purposes
+        # if os.path.exists(self.tmp):
+        #     with open(self.tmp, 'rb') as f:
+        #         self.pmap = np.load(f)
+        #         print("loaded from file")
+        #         return
+        # #self.brushfire(q)
+        # with open(self.tmp, 'wb') as f:
+        #     np.save(f, self.pmap)
+
+
+    # Generate potential branches for the A* searching algorithm
+    def generate_branches(self, points):
+        pt = points[-1]
+        li = []
+        for distance in self.distances:
+            for angle in self.angles:
+                new_point = self.get_landing_point(pt, distance, angle)
+                valid = True
+                for i in range(len(points) - 1):
+                    if points[i].distance(new_point) < (self.max_distance/2):
+                        valid = False
+                        break
+                if valid:
+                    li.append(new_point)
+
+        return li
+
+    def a_star(self, start, target):
+        # print("starting a star")
+        count = 0
+        secondCount = 0
+        # print("starting a star")
+
+        #pq = PriorityQueue() #convention for data insertion is [heuristic, path, estimated total strokes for this path]
+
+        E = start.distance(target)/(200 + self.skill)
+        s = 0 #no shots taken so far
+        path = [start]
+        #pq.put([E, path, 0])
+        heap = [(E, secondCount, 0, path)]
+
+        while heap:
+            count += 1
+            h, _, strokes, path = heappop(heap)
+
+            lastPoint = path[-1]
+            if lastPoint.distance(target) <= 200 + self.skill:
+                # print("found path")
+                # print(count)
+                path.append(target)
+                return path
+
+
+            possibleShots = self.generate_branches(path)
+
+
+            for shot in possibleShots:
+                secondCount += 1
+
+                r,c = self.get_row_col(shot.x, shot.y)
+                if(self.in_bounds(r, c)):
+                    s = strokes + self.expected_strokes(lastPoint, shot)
+                    d = shot.distance(target)
+                    E = d/(200 + self.skill)
+                    h = s + E #heuristic
+                    newPath = path.copy()
+                    newPath.append(shot)
+                    heappush(heap, (h, secondCount, s, newPath))
+
+
+
+
+
+
+
+    
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
 
@@ -42,41 +344,43 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        print('ROAR')
-        required_dist = curr_loc.distance(target)
-        roll_factor = 1.1
-        if required_dist < 20:
-            roll_factor  = 1.0
-        distance = sympy.Min(200+self.skill, required_dist/roll_factor)
-        angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
-        
-        # The potential landing point
-        landing_point = self.get_landing_point(curr_loc, distance, angle)
-        delta_angle = 5 * sympy.pi / 180
-        
-        
-        # if we're landing in water, then try different angles until we land on grass.
-        if golf_map.encloses(landing_point) == False:
-            potential_angle = delta_angle
-            while(potential_angle <= sympy.pi):
-                # Check in one direction
-                if golf_map.encloses(self.get_landing_point(curr_loc, distance, angle + potential_angle)) == True:
-                    angle = angle + potential_angle
-                    break
-                # Check in the other direction
-                if golf_map.encloses(self.get_landing_point(curr_loc, distance, angle - potential_angle)) == True:
-                    angle = angle - potential_angle
-                    break
-                    
-                potential_angle += delta_angle
-                print('In da loop ', potential_angle)
-            
-            # If we went through all angles and none of them work try to decrease the distance
-            if potential_angle > sympy.pi:
-                distance -= 10
-                angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
-                while golf_map.encloses_point(self.get_landing_point(curr_loc, distance, angle)) == False:
-                    distance -= 10
 
-        print('Turn is finished')            
+        # Testing
+        count = 0
+        # .bounds function can get (minx, miny, maxx, maxy) tuple (float values) that bounds the object
+
+        s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
+        t = shapely.geometry.Point(target.x, target.y)
+
+        # Within goal
+        if s.distance(t) <= self.max_distance:
+            angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+            if s.distance(t) < 20:
+                distance = s.distance(t)
+            else:
+                distance = s.distance(t) / 1.1
+            return (distance, angle)
+        else:
+            s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
+            t = shapely.geometry.Point(target.x, target.y)
+            path = self.a_star(s, t)
+
+            e = path[1]
+            angle = sympy.atan2(e.y - curr_loc.y, e.x - curr_loc.x)
+            distance = s.distance(e)
+            return (distance, angle)
+
+
+        minDist = float('inf')
+        closestI = None
+        for i in range(len(self.path)):
+            if s.distance(self.path[i]) < minDist:
+                minDist, closestI = s.distance(self.path[i]), i
+        pt = self.path[closestI + 1]
+
+        angle = sympy.atan2(pt.y - curr_loc.y, pt.x - curr_loc.x)
+        distance = min(self.max_distance, s.distance(self.path[closestI + 1]))
+        if distance > self.max_distance:
+            distance = int(self.max_distance)
+
         return (distance, angle)
