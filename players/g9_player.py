@@ -53,8 +53,8 @@ class Player:
         self.cell_width = 1
         self.rows = None
         self.cols = None
-        self.max_distance = 200 + skill
-        self.distances = [200 + skill, (200 + skill) / 2, (200 + skill) / 4, (200 + skill)*0.9, (200 + skill)*0.8]
+        self.max_distance = 200 + skill -.001
+        self.distances = [self.max_distance*0.1, self.max_distance*0.2,self.max_distance*0.3, self.max_distance*0.4,self.max_distance*0.5, self.max_distance*0.6,self.max_distance*0.7, self.max_distance*0.8,self.max_distance*0.9, self.max_distance]
         self.angles = [0, np.pi / 6, np.pi / 4, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 3 * np.pi / 4, 5 * np.pi / 6, np.pi, 7 * np.pi / 6, 5 * np.pi / 4, 4 * np.pi / 3, 3 * np.pi / 2, 5 * np.pi / 3, 7 * np.pi / 4, 11 * np.pi / 6]
         self.path = None
         self.tmp = 'fire.txt'
@@ -258,7 +258,7 @@ class Player:
                 self.pmap = np.load(f)
                 print("loaded from file")
                 return
-        self.brushfire(q)
+        #self.brushfire(q)
         with open(self.tmp, 'wb') as f:
             np.save(f, self.pmap)
 
@@ -348,10 +348,10 @@ class Player:
             self.quick_map = shapely.geometry.Polygon([(p.x,p.y) for p in golf_map.vertices])
             self.precompute()
 
-        if not self.path:
-            s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
-            t = shapely.geometry.Point(target.x, target.y)
-            self.path = self.a_star(s, t)
+        #if not self.path:
+         #   s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
+          #  t = shapely.geometry.Point(target.x, target.y)
+           # self.path = self.a_star(s, t)
 
         # for p in self.path:
         #     print(p.x, p.y)
@@ -368,6 +368,16 @@ class Player:
             angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
             distance = s.distance(t)
             return (distance, angle)
+        else:
+            s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
+            t = shapely.geometry.Point(target.x, target.y)
+            path = self.a_star(s, t)
+
+            e = path[1]
+            angle = sympy.atan2(e.y - curr_loc.y, e.x - curr_loc.x)
+            distance = s.distance(e)
+            return (distance, angle)
+
 
         minDist = float('inf')
         closestI = None
@@ -378,5 +388,7 @@ class Player:
 
         angle = sympy.atan2(pt.y - curr_loc.y, pt.x - curr_loc.x)
         distance = min(self.max_distance, s.distance(self.path[closestI + 1]))
+        if distance > self.max_distance:
+            distance = int(self.max_distance)
 
         return (distance, angle)
