@@ -318,9 +318,9 @@ class Player:
             dist = np.linalg.norm(np.array(target_point) - current_point)
             v = np.array(target_point) - current_point
             u = v / dist
-            if dist * 1.10 > 20.0:
-                pass
-                max_offset = dist * 1 / 1.10
+            if dist >= 20.0:
+                roll_distance = dist / 10
+                max_offset = roll_distance
                 offset = 0
                 prev_target = target_point
                 while offset < max_offset and self.splash_zone_within_polygon(tuple(current_point), target_point, confidence):
@@ -329,8 +329,6 @@ class Player:
                     prev_target = target_point
                     target_point = current_point + u * dist
                 target_point = prev_target
-            else:
-                target_point = current_point + u * dist * 1.10
 
         cx, cy = current_point
         tx, ty = target_point
