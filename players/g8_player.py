@@ -92,6 +92,8 @@ class Player:
         max_metric = 0
         best_perc_of_path = 0
 
+        self.perc_of_path_comp = self.percentage_completed(Point(curr_loc.x,curr_loc.y))
+
         for distance in np.linspace(max_distance, max_distance / self.n_distances, num=self.n_distances):
             for angle in np.linspace(target_angle-self.angle_offset, target_angle+self.angle_offset, num=self.n_angles):
                 
@@ -122,8 +124,18 @@ class Player:
                 best_shot = (distance, target_angle)
                 best_perc_of_path = perc_of_path
 
-        self.perc_of_path_comp = best_perc_of_path
         return best_shot
+
+    def percentage_completed(self, curr_point):
+        line = self.path
+
+        # calculate percentage of path completed
+        _, last = line.boundary
+        dist_traveled_path = line.project(curr_point)
+        total_dist_path = line.project(last)
+        perc_of_path_comp = dist_traveled_path / total_dist_path
+
+        return perc_of_path_comp
 
     def compute_metric(self, curr_point, conf):
         """
@@ -136,12 +148,12 @@ class Player:
         dist_to_line = curr_point.distance(line)
 
         # calculate percentage of path completed
-        _, last = line.boundary
-        dist_traveled_path = line.project(curr_point)
-        total_dist_path = line.project(last)
-        perc_of_path_comp = dist_traveled_path / total_dist_path
+        perc_of_path_comp = self.percentage_completed(curr_point)
 
         k1, k2, k3 = 10, 100, 1e-7
+
+        if self.perc_of_path_comp > 0.999:
+            return (k1 * conf) / (k3 * dist_to_line+0.00001), perc_of_path_comp
 
         return (k1 * conf) * (k2 * (perc_of_path_comp - self.perc_of_path_comp)) / (k3 * dist_to_line+0.00001), perc_of_path_comp
 
