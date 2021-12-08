@@ -2,7 +2,7 @@ import os
 
 timeout = 1
 
-default_map = os.path.join("maps", "g1", "g1_map.json")
+default_map = os.path.join("maps", "g3", "test_map.json")
 possible_players = ["d"] + list(map(str, range(1, 10)))
 end_player_states = ["S", "F"]
 
@@ -15,7 +15,7 @@ vis_padding = 0.02
 max_tries = 10
 target_radius = 0.054
 min_skill = 10
-max_skill = 100
+max_skill = 20
 extra_roll = 0.1
 min_putter_dist = 20
 max_dist = 200
