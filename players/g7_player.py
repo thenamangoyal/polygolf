@@ -77,7 +77,9 @@ class Player:
 
         risk_object_area = risk_object.area
         land_area = self.golf_map.intersection(risk_object).area
-        risk = 1 / round((land_area/risk_object_area), 7)
+
+        risk = 1 / (round((land_area/risk_object_area), 7) + 1e-7)
+
         return risk - 1
 
     def value_estimation(self, target):
@@ -97,7 +99,8 @@ class Player:
                         # check if putt is possible
                         pass
                     ph = PolygonUtility.point_hash(point)
-                    adjusted_value = distance_to / 300 + 1
+                    # Reward is inversely proportional to distance, with an upper limit of 2
+                    adjusted_value = min(2, (200 + self.skill)/distance_to)
                     if ((1-ALPHA) * adjusted_value + v >= self.valueMap[ph]): 
                         continue
                     value_estimate = ALPHA * self.risk_estimation(point, t, distance_to) + (1 - ALPHA) * adjusted_value + v
@@ -117,11 +120,11 @@ class Player:
                     break
                 newBest.extend(assign_value_est(point, value))
             best_locations = sorted(newBest, key = lambda x: x[1])
-        '''
         self.logger.info('graph:')
         for key, value in sorted(self.graph.items(), key = lambda x: x[0]):
-            self.logger.info((key, self.valueMap[key], PolygonUtility.point_hash(value)))
-        '''
+            print(PolygonUtility.point_hash(value), end='')
+            # self.logger.info((key, self.valueMap[key], PolygonUtility.point_hash(value)))
+            
     def get_location_from_shot(self, distance, angle, curr_loc):
         # angle is in rads
         y_delta = distance * math.sin(angle) 
