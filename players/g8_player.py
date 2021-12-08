@@ -220,7 +220,9 @@ class Player:
         returns a list of nodes. Each node is a tuple (x,y).
         '''
 
-        nodes = [(p.x,p.y) for p in golf_map.vertices]
+        nodes = [(float(p.x),float(p.y)) for p in golf_map.vertices]
+
+        print(nodes)
 
         a = np.empty(2)
         b = np.empty(2)
@@ -252,6 +254,9 @@ class Player:
                         t = k / (n_points_on_diag+1)
                         p = (1-t)*a + t*b
                         nodes.append(tuple(p))
+
+        print(nodes)
+
         return nodes
 
     def make_map(self, nodes):
