@@ -219,8 +219,6 @@ class Player:
 
         nodes = [(float(p.x),float(p.y)) for p in golf_map.vertices]
 
-        # print(nodes)
-
         a = np.empty(2)
         b = np.empty(2)
 
@@ -232,8 +230,12 @@ class Player:
             np.copyto(a,golf_map.vertices[i], casting='unsafe')
             np.copyto(b,golf_map.vertices[j], casting='unsafe')
 
-            # line segment midpoint
-            nodes.append(tuple((a+b)/2))
+            # points along edges
+            n_points_on_edge = 7
+            for k in range(1,n_points_on_edge+1):
+                t = k / (n_points_on_edge+1)
+                p = (1-t)*a + t*b
+                nodes.append(tuple(p))
 
             # points along diagonals
             for j in range(i+2, n_vert):
@@ -246,13 +248,11 @@ class Player:
                 p2 = (1-t)*a + t*b
 
                 if self.line_segment_in_polygon(p1, p2, n_points_on_seg=10, exact=True):
-                    n_points_on_diag = 2
+                    n_points_on_diag = 3
                     for k in range(1,n_points_on_diag+1):
                         t = k / (n_points_on_diag+1)
                         p = (1-t)*a + t*b
                         nodes.append(tuple(p))
-
-        # print(nodes)
 
         return nodes
 
