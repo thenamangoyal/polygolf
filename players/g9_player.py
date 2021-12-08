@@ -214,6 +214,7 @@ class Player:
 
     
     def precompute(self):
+        print("starting precomputation")
         # minx, miny, maxx, maxy = self.quick_map.bounds
         # self.minx = minx
         # self.miny = miny
@@ -281,7 +282,7 @@ class Player:
         return li
 
     def a_star(self, start, target):
-        # print("starting a star")
+        print("starting a star")
         count = 0
         secondCount = 0
         # print("starting a star")
@@ -324,6 +325,38 @@ class Player:
 
 
 
+    def approach(self, s, t):
+        d = s.distance(t)
+        r = d/1.1
+        angle = float(sympy.atan2(t.y - s.y, t.x - s.x))
+        print("approach")
+        print(r)
+        print(angle)
+
+        pt = self.get_landing_point(s, r, angle)
+
+
+        bestProbability = self.expected_strokes(s, pt)
+        bestr = r
+        bestangle = angle
+
+        if bestProbability < 1.1: #if shooting straight at the hole will go in water less than 1/10th of the time, just shoot
+            return r, angle
+
+
+        for i in range(-20,21,2):
+            for j in range(-20,21,2): #will check 100 points in 2 meter increments around aiming directly at hole
+                testPoint = shapely.geometry.Point(pt.x + i, pt.y + j)
+                testr, testangle = self.get_polar(s, testPoint)
+                if(testr > self.max_distance): #break if point too far away
+                    break
+                strokes = self.expected_strokes(s, testPoint)
+                if strokes < bestProbability:
+                    bestProbability = strokes
+                    r = testr
+                    angle = testangle
+
+        return r, angle
 
 
 
@@ -358,7 +391,7 @@ class Player:
             if s.distance(t) < 20:
                 distance = s.distance(t)
             else:
-                distance = s.distance(t) / 1.1
+                distance, angle = self.approach(s,t)
             return (distance, angle)
         else:
             s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
