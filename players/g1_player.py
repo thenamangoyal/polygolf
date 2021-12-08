@@ -120,10 +120,10 @@ class Player:
         #area_inside_the_polygon =  ((probable_landing_region.intersection(shape_map_work.buffer(0))).area)/probable_landing_region.area
         return (area_inside_the_polygon==1)
         
-    def is_safe(self, d, angle, start_point):
+    def is_safe(self, d, angle, start_point,confidence_level=2):
         #to do add confidence bounds
-        angle_2std = ((1/(2*self.skill)))
-        distance_2std = (d/self.skill)
+        angle_2std = ((1/(2*self.skill)))*(confidence_level/2)
+        distance_2std = (d/self.skill)*(confidence_level/2)
         min_distance = d-distance_2std
         max_distance = d+(d*0.1)+distance_2std
         begin_line1 = (start_point.x + (min_distance)*math.cos(angle - angle_2std ), start_point.y + (min_distance)*math.sin(angle -angle_2std ))
