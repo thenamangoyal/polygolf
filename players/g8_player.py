@@ -7,8 +7,7 @@ from time import time
 from shapely.geometry import Polygon, Point, LineString
 from math import pi, atan2, inf, sqrt
 import heapq
-
-from sklearn.neighbors import BallTree
+from dijkstar import Graph, find_path
 
 class Player:
     def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
@@ -41,7 +40,6 @@ class Player:
 
         self.perc_of_path_comp = 0
 
-
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D, curr_loc: sympy.geometry.Point2D, prev_loc: sympy.geometry.Point2D, prev_landing_point: sympy.geometry.Point2D, prev_admissible: bool) -> Tuple[float, float]:
         """Function which based n current game state returns the distance and angle, the shot must be played 
 
@@ -59,6 +57,7 @@ class Player:
         """
 
         self.current_loc = np.array([float(curr_loc.x), float(curr_loc.y)])
+        # print(target)
         # init golf map polygon
         if score == 1:
             self.target = np.array([float(target.x), float(target.y)])
@@ -76,8 +75,8 @@ class Player:
 
             self.map = golf_map
             path = self.get_path()
-            path.reverse()
-            self.path = LineString([(p.x,p.y) for p in path])
+
+            self.path = LineString([n for n in path.nodes])
                     
         np.copyto(self.np_curr_loc, curr_loc.coordinates, casting='unsafe')
         np.copyto(self.np_target, target.coordinates, casting='unsafe')
@@ -107,7 +106,6 @@ class Player:
                     max_metric = metric
                     best_shot = (distance, angle)
                     best_perc_of_path = perc_of_path
-                    # print(perc_of_path - self.perc_of_path_comp)
 
         distance = (required_dist/roll_factor)
         if distance < (200+self.skill)*0.75:
@@ -124,7 +122,6 @@ class Player:
                 best_shot = (distance, target_angle)
                 best_perc_of_path = perc_of_path
 
-        print('shot', best_shot)
         self.perc_of_path_comp = best_perc_of_path
         return best_shot
 
@@ -144,7 +141,7 @@ class Player:
         total_dist_path = line.project(last)
         perc_of_path_comp = dist_traveled_path / total_dist_path
 
-        k1, k2, k3 = 1, 100, 1 
+        k1, k2, k3 = 10, 100, 1e-7
 
         return (k1 * conf) * (k2 * (perc_of_path_comp - self.perc_of_path_comp)) / (k3 * dist_to_line+0.00001), perc_of_path_comp
 
@@ -222,7 +219,7 @@ class Player:
 
         nodes = [(float(p.x),float(p.y)) for p in golf_map.vertices]
 
-        print(nodes)
+        # print(nodes)
 
         a = np.empty(2)
         b = np.empty(2)
@@ -255,103 +252,31 @@ class Player:
                         p = (1-t)*a + t*b
                         nodes.append(tuple(p))
 
-        print(nodes)
+        # print(nodes)
 
         return nodes
-
-    def make_map(self, nodes):
-        self.tree = BallTree(nodes, leaf_size=8)
-
-    def reconstruct_path(self, node):
-        total_path = [node]
-        parent = node.came_from
-        while parent:
-            total_path.append(parent)
-            parent = parent.came_from
-        return total_path
 
     def get_path(self):
         self.nodes = self.compute_graph_nodes(golf_map=self.map)
         self.nodes.append((self.target[0], self.target[1])) # add target to nodes
         self.nodes.append((self.current_loc[0], self.current_loc[1]))
-        self.make_map(self.nodes)
-        self.Nodes = []
-        for i in range(0,len(self.nodes)-2): # add start and target later
-            node = self.nodes[i]
-            new_node = Node(node, self.target, self.tree)
-            self.Nodes.append(new_node)
 
-        end = Node((self.target[0],self.target[1]), self.target, self.tree, is_target=True)
-        self.Nodes.append(end)
-        start = Node(self.nodes[-1], self.target, self.tree)
-        self.Nodes.append(start)
-        start.gscore = 0
-        start.fscore = start.hscore
-        open_set = [start]
-        heapq.heapify(open_set)
+        def distance(node1,node2):
+            val = np.linalg.norm(np.array([float(node1[0]), float(node1[1])])-np.array([float(node2[0]), float(node2[1])]))
+            if val > 200 + self.skill:
+                return float('inf')
+            return val
+            
 
-        while open_set:
-            current = open_set.pop()
-            # print("curr", current.x, current.y, current.is_target, current.hscore, 200+self.skill)
+        #find shortest path between nodes
+        graph = Graph()
 
-            if current.is_target:
-                print("Success! Found End!")
-                return self.reconstruct_path(current)
-            if current.hscore < 200+self.skill:
-                print("Success! Close to End!")
-                end.came_from = current
-                return self.reconstruct_path(end)
+        for i in range(len(self.nodes)):
+            for j in range(len(self.nodes)):
+                if i == j:
+                    continue
 
-            for i,neighbor_index in enumerate(current.neighbors_indeces):
-                neighbor = self.Nodes[neighbor_index]
-                distance_to_neighbor = current.neighbors_distances[i]
-                if distance_to_neighbor < self.skill+200 or self.line_segment_in_polygon(np.array([current.x, current.y]), np.array([neighbor.x, neighbor.y]), n_points_on_seg=5):
-                    tentative_gscore = current.gscore + distance_to_neighbor
-                else:
-                    tentative_gscore = inf
+                graph.add_edge(self.nodes[i], self.nodes[j], distance(self.nodes[i],self.nodes[j]))
 
-                if tentative_gscore < neighbor.gscore:
-                    neighbor.came_from = current
-                    neighbor.gscore = tentative_gscore
-                    neighbor.fscore = tentative_gscore + neighbor.hscore
-                    if neighbor not in open_set:
-                        #print("Found new neighbor!")
-                        heapq.heappush(open_set, neighbor)
-
-        return False
-
-
-class Node:
-    def __init__(self, tup, target, tree, is_target = False):
-        self.x = tup[0]
-        self.y = tup[1]
-        self.came_from = None
-        self.gscore = inf
-        self.fscore = inf
-        first = np.array([float(self.x), float(self.y)])
-        self.hscore = np.linalg.norm(first-target) # distance to target
-        self.neighbors_distances, self.neighbors_indeces = tree.query([(self.x, self.y)], k=15) # list of 8 nearest neighbors
-        self.neighbors_distances = self.neighbors_distances[0]
-        self.neighbors_indeces = self.neighbors_indeces[0]
-        self.is_target = is_target
-
-    def __eq__(self, other):
-        if self.fscore == other.fscore:
-            return True
-
-    def __gt__(self, other):
-        if self.fscore > other.fscore:
-            return True
-        else:
-            return False
-
-    def __lt__(self, other):
-        if self.fscore < other.fscore:
-            return True
-        else:
-            return False
-
-    def distance(self, other):
-        return np.linalg.norm(np.array([float(self.x), float(self.y)])-np.array([float(other.x), float(other.y)]))
-
-
+        path = find_path(graph, (self.current_loc[0], self.current_loc[1]), (self.target[0], self.target[1]))
+        return path
