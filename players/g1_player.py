@@ -66,11 +66,20 @@ class Player:
         return inside
         
     def segmentize_map(self, golf_map ):
+        x_min, y_min = float('inf'), float('inf')
+        x_max, y_max = float('-inf'), float('-inf')
+        for point in golf_map.vertices:
+            x = float(point.x)
+            y = float(point.y)
+            x_min = min(x, x_min)
+            x_max = max(x, x_max)
+            y_min = min(y, y_min)
+            y_max = max(y, y_max)
         area_length = 5
-        beginx = area_length/2
-        beginy = area_length/2
-        endx = constants.vis_width
-        endy = constants.vis_height
+        beginx = x_min
+        beginy = y_min
+        endx = x_max
+        endy = y_max
         node_centers = []
         node_centers2 =[]   
         for i in range(int(beginx), int(endx), area_length):
@@ -93,7 +102,7 @@ class Player:
     def is_safe(self, d, angle, start_point):
         #to do add confidence bounds
         angle_2std = ((1/(self.skill)))
-        distance_2std = (2*d/self.skill)
+        distance_2std = (d/self.skill)
         min_distance = d-distance_2std
         max_distance = d+(d*0.1)+distance_2std
         begin_line1 = (start_point.x + (min_distance)*math.cos(angle - angle_2std ), start_point.y + (min_distance)*math.sin(angle -angle_2std ))
@@ -104,24 +113,24 @@ class Player:
         L2 = LineString([Point(begin_line2), Point(end_line2)])
         check1 = L1.within(self.map_shapely)
         check2 = L2.within(self.map_shapely)
-        xs=[]
-        ys=[]
-        step = 2*angle_2std/4
-        angles = [angle - angle_2std +step , angle - angle_2std +2*step ,angle - angle_2std +3*step ]
-        p = []
-        for a in angles:
-            x = start_point.x + max_distance * math.cos(a)
-            y = start_point.y + max_distance * math.sin(a)
-            p.append(Point2D(x,y))
+        # xs=[]
+        # ys=[]
+        # step = 2*angle_2std/4
+        # angles = [angle - angle_2std +step , angle - angle_2std +2*step ,angle - angle_2std +3*step ]
+        # p = []
+        # for a in angles:
+        #     x = start_point.x + max_distance * math.cos(a)
+        #     y = start_point.y + max_distance * math.sin(a)
+        #     p.append(Point2D(x,y))
 
-        for a in reversed(angles):
-            x = start_point.x + min_distance * math.cos(a)
-            y = start_point.y + min_distance * math.sin(a)
-            p.append(Point2D(x,y))
-        contains =0
-        for i in p:
-            if(self.point_inside_polygon(self.map.vertices, i)):
-                contains +=1
+        # for a in reversed(angles):
+        #     x = start_point.x + min_distance * math.cos(a)
+        #     y = start_point.y + min_distance * math.sin(a)
+        #     p.append(Point2D(x,y))
+        # contains =0
+        # for i in p:
+        #     if(self.point_inside_polygon(self.map.vertices, i)):
+        #         contains +=1
         if (check1 &   check2):
             return 1
         else:
@@ -154,16 +163,15 @@ class Player:
         neighbours = []
         if self.is_neighbour(point, self.target):
             print('target close!')
-            neighbours.append(self.target)
+            yield (self.target)
         for center in self.centers:
-            print("here")
             if center.equals(Point2D(point)):
                 continue
             if tuple(center) in closedSet:
                 continue
             if self.is_neighbour(point, center):
                 neighbours.append( tuple(center))
-        return neighbours
+                yield tuple(center)
 
   
     def aStar( self, current, end):
@@ -226,7 +234,6 @@ class Player:
             self.map = golf_map
             shape_map = golf_map.vertices 
             self.map_shapely = Polygon(shape_map)
-        print(self.centers)
         if(self.turns>0):
             next_point = self.initial_path[0] if len(self.initial_path)>0 else self.target
             print(next_point)
