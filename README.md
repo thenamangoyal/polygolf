@@ -69,7 +69,7 @@ optional arguments:
   --seed SEED, -s SEED  Seed used by random number generator, specify 0 to use
                         no seed and have different random behavior on each
                         launch
-  --port PORT           Port to start
+  --port PORT           Port to start, specify -1 to auto-assign
   --address ADDRESS, -a ADDRESS
                         Address
   --no_browser, -nb     Disable browser launching in GUI mode
