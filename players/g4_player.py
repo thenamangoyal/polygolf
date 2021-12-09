@@ -48,6 +48,15 @@ class Player:
         self.skill = skill
         self.rng = rng
         self.logger = logger
+        self.risk = 0.1
+        self.simulate_times = 100
+        self.tolerant_times = self.simulate_times * self.risk
+
+        # self.pre_compute_simulate_times = 10
+        # self.pre_compute_risk_rate = 0.2
+        # self.pre_compute_tolerant_times = self.pre_compute_simulate_times * self.pre_compute_risk_rate
+
+        self.allowed_distance = constants.max_dist + self.skill
 
         # # precompute check
         if os.path.isfile(precomp_path):
@@ -65,18 +74,22 @@ class Player:
         for x_index in range(len(point_map)):
             for y_index in range(len(point_map[0])):
                 if int(grid_scores[x_index][y_index]) != 100:
-                    self.point_dict[Point(point_map[x_index][y_index].x, point_map[x_index][y_index].y)] = int(
-                        grid_scores[x_index][y_index])
+                    self.point_dict[Point(point_map[x_index][y_index].x, point_map[x_index][y_index].y)] = \
+                    grid_scores[x_index][y_index]
 
-        # TODO: define the risk rate, which means we can only take risks at 5%
-        self.risk = 0.05
-        self.simulate_times = 100
-        self.tolerant_times = self.simulate_times * self.risk
+        self.point_dict[Point(target.x, target.y)] = 0
 
         self.turn = 0
         self.shapely_golf_map = None
 
         self.last_result = None
+        self.prev_sample_point = []
+
+        self.prev_expected_scores = defaultdict(int)
+        self.max_same_score_times = 2
+
+        curr_expected_score = self.get_expected_score(self.point_dict, start)
+        self.prev_expected_scores[curr_expected_score] += 1
 
     def water_boolean(self, poly, grid_points):
         water_grid = []
@@ -99,7 +112,6 @@ class Player:
         list_of_distances = []
 
         dimension = 60
-        allowed_distance = (constants.max_dist + self.skill) / (1. + constants.extra_roll)
         grid_of_scores = np.array(np.ones((dimension, dimension)) * 100)
 
         xmin = float(xmin)
@@ -117,7 +129,7 @@ class Player:
                 considered_point = geometry.Point(xcoords[y_index, x_index], ycoords[y_index, x_index])
                 list_of_lists[x_index].append(considered_point)
 
-        grid_of_scores = self.real_bfs(poly, list_of_lists, target_shapely, allowed_distance, grid_of_scores)
+        grid_of_scores = self.real_bfs(poly, list_of_lists, target_shapely, self.allowed_distance, grid_of_scores)
 
         return grid_of_scores, list_of_lists
 
@@ -126,8 +138,26 @@ class Player:
         water_grid = self.water_boolean(poly, list_of_lists)  # True if on LAND
         for x_index in range(len(list_of_lists)):
             for y_index in range(len(list_of_lists[0])):
+                if not water_grid[x_index][y_index]:
+                    continue
+
                 thedistance = target_shapely.distance(list_of_lists[x_index][y_index])
-                if (thedistance < allowed_distance) and water_grid[x_index][y_index]:
+                if (thedistance < allowed_distance):
+                    #     is_safe = True
+                    #     failed_times = 0
+                    #     angle = sympy.atan2(target_shapely.y - list_of_lists[x_index][y_index].y, target_shapely.x - list_of_lists[x_index][y_index].x)
+                    #     # simulate the actual situation to ensure fail times will not be larger than self.tolerant_times
+                    #     for _ in range(self.pre_compute_simulate_times):
+                    #
+                    #         is_succ, _ = self.simulate_shapely_once(thedistance, angle, list_of_lists[x_index][y_index], poly, True)
+                    #         if not is_succ:
+                    #             failed_times += 1
+                    #             if failed_times > self.pre_compute_tolerant_times:
+                    #                 is_safe = False
+                    #                 break
+                    #
+                    #     if not is_safe:
+                    #         continue
                     queue.append((x_index, y_index))
                     if thedistance < constants.min_putter_dist:
                         grid_of_scores[x_index][y_index] = 0.5
@@ -144,7 +174,7 @@ class Player:
             elem = queue.pop()
             # get all points that are < distance from elem
             elem_score = grid_of_scores[elem[0]][elem[1]]
-            points_to_consider = []
+
             x_index_start = 0 if elem[0] - x_cell_range < 0 else elem[0] - x_cell_range
             x_index_end = len(list_of_lists) if elem[0] + x_cell_range + 1 > len(list_of_lists) else elem[
                                                                                                          0] + x_cell_range + 1
@@ -160,15 +190,39 @@ class Player:
             for x_index in range(x_index_start, x_index_end):
                 for y_index in range(y_index_start, y_index_end):
                     elem_point = list_of_lists[elem[0]][elem[1]]
+                    if not water_grid[x_index, y_index] or elem_score + 1 >= grid_of_scores[x_index][y_index]:
+                        continue
+
                     distance = elem_point.distance(list_of_lists[x_index][y_index])
-                    if distance < allowed_distance:
-                        points_to_consider.append((x_index, y_index))
-            for point in points_to_consider:
-                if water_grid[point[0], point[1]]:
-                    (x_index, y_index) = point
-                    if elem_score + 1 < grid_of_scores[x_index][y_index]:
+                    if distance <= allowed_distance:
+                        # is_safe = True
+                        # failed_times = 0
+                        # angle = sympy.atan2(list_of_lists[x_index][y_index].y - elem_point.y,
+                        #                     list_of_lists[x_index][y_index].x - elem_point.x)
+                        # # simulate the actual situation to ensure fail times will not be larger than self.tolerant_times
+                        # for _ in range(self.pre_compute_simulate_times):
+                        #
+                        #     is_succ, _ = self.simulate_shapely_once(distance, angle, elem_point,
+                        #                                             poly, True)
+                        #     if not is_succ:
+                        #         failed_times += 1
+                        #         if failed_times > self.pre_compute_tolerant_times:
+                        #             is_safe = False
+                        #             break
+                        #
+                        # if not is_safe:
+                        #     continue
+
                         grid_of_scores[x_index][y_index] = elem_score + 1
-                        queue.append(point)
+                        queue.append((x_index, y_index))
+                        # points_to_consider.append((x_index, y_index))
+
+            # for point in points_to_consider:
+            #     if water_grid[point[0], point[1]]:
+            #         (x_index, y_index) = point
+            #         if elem_score + 1 < grid_of_scores[x_index][y_index]:
+            #             grid_of_scores[x_index][y_index] = elem_score + 1
+            #             queue.append(point)
         return grid_of_scores
 
     def play(self, score: int, golf_map: sympy.Polygon, target: sympy.geometry.Point2D,
@@ -195,6 +249,9 @@ class Player:
         self.turn += 1
 
         if not prev_admissible and self.last_result is not None:
+            distance, angle = self.last_result
+            final_point = self.get_expected_next_point(distance, angle, curr_loc)
+            self.prev_expected_scores[self.get_expected_score(self.point_dict, final_point)] += 1
             return self.last_result
 
         # 1. always try greedy first
@@ -205,7 +262,18 @@ class Player:
         distance = sympy.Min(constants.max_dist + self.skill, required_dist / roll_factor)
         angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
 
-        if required_dist <= constants.max_dist + self.skill:
+        can_try_greedy = True
+        if required_dist > constants.max_dist + self.skill:
+            # if the distance > largest distance
+            # we can always try the greedy first, as long as the score of that landing point is decreasing
+            curr_expected_score = self.get_expected_score(self.point_dict, curr_loc)
+            final_point = self.get_expected_next_point(distance, angle, curr_loc)
+
+            greedy_expected_score = self.get_expected_score(self.point_dict, final_point)
+            if curr_expected_score <= greedy_expected_score:
+                can_try_greedy = False
+
+        if can_try_greedy:
             is_greedy = True
             failed_times = 0
             # simulate the actual situation to ensure fail times will not be larger than self.tolerant_times
@@ -217,6 +285,8 @@ class Player:
                         is_greedy = False
                         break
             if is_greedy:
+                final_point = self.get_expected_next_point(distance, angle, curr_loc)
+                self.prev_expected_scores[self.get_expected_score(self.point_dict, final_point)] += 1
                 self.logger.info(str(self.turn) + "select greedy strategy to go")
                 self.last_result = (distance, angle)
                 return (distance, angle)
@@ -225,9 +295,12 @@ class Player:
         desire_distance, desire_angle = self.get_safe_sample_points_inside_circle(self.point_dict, curr_loc, distance,
                                                                                   target, golf_map, prev_admissible)
         self.last_result = (desire_distance, desire_angle)
+        final_point = self.get_expected_next_point(desire_distance, desire_angle, curr_loc)
+        self.prev_expected_scores[self.get_expected_score(self.point_dict, final_point)] += 1
+
         return (desire_distance, desire_angle)
 
-    def simulate_shapely_once(self, distance, angle, curr_loc, golf_map):
+    def simulate_shapely_once(self, distance, angle, curr_loc, golf_map, is_simple=False):
         actual_distance = self.rng.normal(distance, distance / self.skill)
         actual_angle = self.rng.normal(angle, 1 / (2 * self.skill))
 
@@ -247,7 +320,7 @@ class Player:
 
         is_inside = golf_map.contains(landing_point) and golf_map.contains(final_point)
 
-        if is_inside:
+        if not is_simple and is_inside:
             test_times = 10
             deltax = (final_point.x - landing_point.x) / test_times
             deltay = (final_point.y - landing_point.y) / test_times
@@ -258,19 +331,33 @@ class Player:
                     break
         return is_inside, final_point
 
+    def diff_prev_sample_point(self, point):
+        if len(self.prev_sample_point) == 0:
+            return True
+
+        if point in self.prev_sample_point:
+            return False
+
+        return True
+
     # points_score --> dictionary of (point, score)
     def get_safe_sample_points_inside_circle(self, points_score, curr_loc, radius, target, golf_map, prev_admissible):
         circle_points = dict()
         for point in points_score.keys():
-            if get_distance(curr_loc, point) <= radius:
+            if get_distance(curr_loc, point) <= self.allowed_distance:
                 circle_points[point] = points_score[point]
 
         sorted_points_score = dict(sorted(circle_points.items(), key=lambda x: x[1]))
         curr_expected_score = self.get_expected_score(self.point_dict, curr_loc)
+        if len(self.prev_expected_scores) > 0:
+            curr_expected_score = min(curr_expected_score, min(self.prev_expected_scores.keys()))
+
         smallest_score = min(sorted_points_score.values())
 
         middle_point_max_succ_times = -1
         now_max_succ_times = -1
+        prev_sample_point_1 = None
+        prev_sample_point_2 = None
         if curr_expected_score > smallest_score:
             self.logger.info(str(self.turn) + "max_possible_score < curr_expected_score")
             max_possible_score = curr_expected_score - 0.5
@@ -285,6 +372,9 @@ class Player:
             safe_point = None
             unsafe_points2score = dict()
             for point in closest2target_points.keys():
+                if not self.diff_prev_sample_point(point):
+                    continue
+
                 succ_times = 0
                 for _ in range(self.simulate_times):
                     angle = sympy.atan2(point.y - curr_loc.y, point.x - curr_loc.x)
@@ -299,6 +389,7 @@ class Player:
                 unsafe_points2score[point] = succ_times
 
             if safe_point:
+                self.prev_sample_point.append(safe_point)
                 desire_distance = get_distance(curr_loc, safe_point)
                 desire_angle = sympy.atan2(safe_point.y - curr_loc.y, safe_point.x - curr_loc.x)
                 return (desire_distance, desire_angle)
@@ -319,12 +410,14 @@ class Player:
                                                                                                              golf_map,
                                                                                                              quadrant,
                                                                                                              desire_angle,
-                                                                                                             max_possible_score)
-            if safe_point_max_succ_times > middle_point_max_succ_times:
+                                                                                                             curr_expected_score,
+                                                                                                             target)
+            if safe_point_max_succ_times >= middle_point_max_succ_times:
                 self.logger.info(str(self.turn) + "still choose sample points")
+                prev_sample_point_1 = safe_point
                 desire_distance = get_distance(curr_loc, safe_point)
                 desire_angle = sympy.atan2(safe_point.y - curr_loc.y, safe_point.x - curr_loc.x)
-            else:
+            elif middle_point_max_succ_times != 0:
                 self.logger.info(str(self.turn) + "choose new sample points around the middle points")
             # sample_safe_point, sample_safe_point_max_succ_times = self.go_for_sample_points_in_circle(curr_loc, radius,
             #                                                                                           quadrant,
@@ -340,7 +433,11 @@ class Player:
             #     desire_angle = sympy.atan2(sample_safe_point.y - curr_loc.y, sample_safe_point.x - curr_loc.x)
 
             now_max_succ_times = max(safe_point_max_succ_times, middle_point_max_succ_times)
-            if now_max_succ_times / self.simulate_times > 1 - self.risk * 2:
+            if now_max_succ_times / self.simulate_times > 1 - self.risk * 2 or \
+                    (now_max_succ_times / self.simulate_times >= 0.5 and
+                     self.prev_expected_scores[curr_expected_score] >= self.max_same_score_times):
+                if prev_sample_point_1:
+                    self.prev_sample_point.append(prev_sample_point_1)
                 return (desire_distance, desire_angle)
 
             desire_distance_1, desire_angle_1 = desire_distance, desire_angle
@@ -357,6 +454,8 @@ class Player:
         safe_point_2 = None
         unsafe_points2score = dict()
         for point in curr2now_points.keys():
+            if not self.diff_prev_sample_point(point):
+                continue
             succ_times = 0
             for _ in range(self.simulate_times):
                 angle = sympy.atan2(point.y - curr_loc.y, point.x - curr_loc.x)
@@ -371,21 +470,27 @@ class Player:
             unsafe_points2score[point] = succ_times
 
         if safe_point_2:
+            self.prev_sample_point.append(safe_point_2)
             desire_distance_2 = get_distance(curr_loc, safe_point_2)
             desire_angle_2 = sympy.atan2(safe_point_2.y - curr_loc.y, safe_point_2.x - curr_loc.x)
             return (desire_distance_2, desire_angle_2)
 
         self.logger.info(str(self.turn) + "reach unsafe state")
-        unsafe_points = sorted(unsafe_points2score.items(), key=lambda x: -x[1])
-        safe_point_2 = unsafe_points[0][0]
-        safe_point_max_succ_times_2 = unsafe_points[0][1]
-        if safe_point_max_succ_times_2 == 0:
+        if len(unsafe_points2score) == 0:
+            safe_point_max_succ_times_2 = 0
             quadrant = None
+            desire_angle_2 = None
+            desire_distance_2 = None
         else:
-            quadrant = (safe_point_2.y - curr_loc.y, safe_point_2.x - curr_loc.x)
-        desire_distance_2 = get_distance(curr_loc, safe_point_2)
-        desire_angle_2 = sympy.atan2(safe_point_2.y - curr_loc.y, safe_point_2.x - curr_loc.x)
-        self.logger.info(str(self.turn) + "reach unsafe state")
+            unsafe_points = sorted(unsafe_points2score.items(), key=lambda x: -x[1])
+            safe_point_2 = unsafe_points[0][0]
+            safe_point_max_succ_times_2 = unsafe_points[0][1]
+            if safe_point_max_succ_times_2 == 0:
+                quadrant = None
+            else:
+                quadrant = (safe_point_2.y - curr_loc.y, safe_point_2.x - curr_loc.x)
+            desire_distance_2 = get_distance(curr_loc, safe_point_2)
+            desire_angle_2 = sympy.atan2(safe_point_2.y - curr_loc.y, safe_point_2.x - curr_loc.x)
 
         if middle_point_max_succ_times == -1:
             # try to go to sample around middle points
@@ -395,25 +500,34 @@ class Player:
                 golf_map,
                 quadrant,
                 desire_angle_2,
-                max_possible_score)
-            if safe_point_max_succ_times_2 > middle_point_max_succ_times:
+                max_possible_score, target)
+            if safe_point_max_succ_times_2 >= middle_point_max_succ_times:
+                prev_sample_point_2 = safe_point_2
                 self.logger.info(str(self.turn) + "still choose sample points")
                 desire_distance_2 = get_distance(curr_loc, safe_point_2)
                 desire_angle_2 = sympy.atan2(safe_point_2.y - curr_loc.y, safe_point_2.x - curr_loc.x)
             else:
                 self.logger.info(str(self.turn) + "choose new sample points around the middle points")
 
+        if middle_point_max_succ_times > safe_point_max_succ_times_2:
+            desire_distance_2, desire_angle_2 = desire_distance_1, desire_angle_1
+
         now_max_succ_times_2 = max(safe_point_max_succ_times_2, middle_point_max_succ_times)
         if now_max_succ_times > now_max_succ_times_2:
+            if prev_sample_point_1:
+                self.prev_sample_point.append(prev_sample_point_1)
             self.logger.info(
                 str(self.turn) + "choose max_possible_score < curr_expected_score" + str(now_max_succ_times))
             return desire_distance_1, desire_angle_1
 
+        if prev_sample_point_2:
+            self.prev_sample_point = prev_sample_point_2
         self.logger.info(
             str(self.turn) + "choose max_possible_score == curr_expected_score" + str(now_max_succ_times_2))
         return (desire_distance_2, desire_angle_2)
 
-    def go_for_middle_points_in_circle(self, curr_loc, radius, golf_map, quadrant, desire_angle, max_possible_score):
+    def go_for_middle_points_in_circle(self, curr_loc, radius, golf_map, quadrant, desire_angle, max_possible_score,
+                                       target):
         # 2. if we cannot use greedy, we try to find the points intersected with the golf map
         if quadrant:
             quadranty, quadrantx = quadrant
@@ -453,15 +567,18 @@ class Player:
         # if there we delete every point in temp_middle_points,
         # which means we could go longer ways than expected, we need to add back those points
         if len(middle_points) == 0:
-            self.logger.error(str(self.turn) + "cannot find any reasonable middle point, BUG!!!")
-            # middle_point = temp_middle_points
+            self.logger.info(str(self.turn) + "cannot find any reasonable middle point!")
             return (radius, desire_angle, 0)
 
         middle_points_num = len(middle_points)
         curr2mid_angle = [0] * middle_points_num
-        for i, middle_point in enumerate(middle_points):
-            curr_to_mid_angle = sympy.atan2(middle_point.y - curr_loc.y, middle_point.x - curr_loc.x)
-            curr2mid_angle[i] = abs(curr_to_mid_angle - desire_angle)
+        if desire_angle:
+            for i, middle_point in enumerate(middle_points):
+                curr_to_mid_angle = sympy.atan2(middle_point.y - curr_loc.y, middle_point.x - curr_loc.x)
+                curr2mid_angle[i] = abs(curr_to_mid_angle - desire_angle)
+        else:
+            for i, middle_point in enumerate(middle_points):
+                curr2mid_angle[i] = get_distance(middle_point, target)
 
         # rank the middle point from the closest angle to sample points to farther
         distance_sorted_indexes = sorted(range(middle_points_num), key=lambda x: curr2mid_angle[x])
@@ -474,7 +591,8 @@ class Player:
             angle = sympy.atan2(middle_point.y - curr_loc.y, middle_point.x - curr_loc.x)
             succ_times = 0
             for _ in range(self.simulate_times):
-                is_succ, _ = self.simulate_shapely_once(radius, angle, curr_loc, self.shapely_golf_map)
+                is_succ, _ = self.simulate_shapely_once(get_distance(middle_point, curr_loc), angle, curr_loc,
+                                                        self.shapely_golf_map)
                 succ_times += is_succ
 
             if succ_times / self.simulate_times >= 1 - self.risk:
@@ -484,9 +602,9 @@ class Player:
             point = Point(middle_point.x, middle_point.y)
             unsafe_points2score[point] = succ_times
 
-        desire_distance = radius
         if safe_point:
-            self.logger.info(str(self.turn) + "select largest distance to middle point to go")
+            self.logger.info(str(self.turn) + "select middle point to go")
+            desire_distance = get_distance(safe_point, curr_loc)
             desire_angle = sympy.atan2(safe_point.y - curr_loc.y, safe_point.x - curr_loc.x)
             return (desire_distance, desire_angle, self.simulate_times)
 
@@ -504,8 +622,15 @@ class Player:
         count = 0
         while True:
             delte_distance = radius - delta * count
+            count += 1
             if count > delta_times / 2:
                 break
+
+            delta_middle_point = shapely.geometry.Point(curr_loc.x + delte_distance * sympy.cos(desire_angle),
+                                                        curr_loc.y + delte_distance * sympy.sin(desire_angle))
+            expected_score = self.get_expected_score(self.point_dict, delta_middle_point)
+            if not self.shapely_golf_map.contains(delta_middle_point) or expected_score > max_possible_score:
+                continue
 
             succ_times = 0
             for _ in range(self.simulate_times):
@@ -518,7 +643,6 @@ class Player:
                 break
 
             unsafe_distance2score[delte_distance] = succ_times
-            count += 1
 
         # deltax = 5
         # deltay = 5
@@ -557,9 +681,12 @@ class Player:
 
         if desire_distance is None:
             self.logger.info(str(self.turn) + "risky!!! select most safe point to middle point to go")
-            unsafe_points = sorted(unsafe_distance2score.items(), key=lambda x: -x[1])
-            desire_distance = unsafe_points[0][0]
-            max_succ_times = unsafe_points[0][1]
+            if len(unsafe_distance2score) == 0:
+                max_succ_times = 0
+            else:
+                unsafe_points = sorted(unsafe_distance2score.items(), key=lambda x: -x[1])
+                desire_distance = unsafe_points[0][0]
+                max_succ_times = unsafe_points[0][1]
         else:
             self.logger.info(str(self.turn) + "select safe distance to safest middle point to go")
             max_succ_times = self.simulate_times
@@ -578,6 +705,12 @@ class Player:
                 expected_score = score
                 smallest_distance = current_dist
         return expected_score
+
+    def get_expected_next_point(self, distance, angle, curr_loc):
+        final_point = Point(curr_loc.x + distance * sympy.cos(angle),
+                            curr_loc.y + distance * sympy.sin(angle))
+
+        return final_point
 
     def go_for_sample_points_in_circle(self, curr_loc, radius, quadrant, desire_angle, max_possible_score):
         quadranty, quadrantx = quadrant
