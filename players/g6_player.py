@@ -13,8 +13,6 @@ from typing import Tuple
 from collections import defaultdict
 import time
 
-from sympy.geometry.point import Point2D
-
 DEBUG_MSG = True  # enable print messages
 
 
@@ -32,7 +30,16 @@ class Player:
             map_path (str): File path to map
             precomp_dir (str): Directory path to store/load precomputation
         """
-        """ # if depends on skill
+        
+
+        self.skill = skill
+        self.rng = rng
+        self.logger = logger
+
+
+        
+        self.needs_edge_init = True
+        # if depends on skill
         precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
         # # if doesn't depend on skill
         # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
@@ -41,26 +48,50 @@ class Player:
         if os.path.isfile(precomp_path):
             # Getting back the objects:
             with open(precomp_path, "rb") as f:
-                self.obj0, self.obj1, self.obj2 = pickle.load(f)
+                #self.obj0, self.obj1, self.obj2 = pickle.load(f)
+                self.shapely_poly, self.shapely_edges, self.graph, self.critical_pts = pickle.load(f)
         else:
             # Compute objects to store
-            self.obj0, self.obj1, self.obj2 = _
+            #self.obj0, self.obj1, self.obj2 = _
+            
+            self.graph = {}  # self.graph[node_i] contains a list of edges where each edge_j = (node_j, weight, f_count)
+            # self.all_nodes_center = {}
+            self.critical_pts = []
+            self.shapely_poly = Polygon([(p.x, p.y) for p in golf_map.vertices])
+            self.shapely_edges = LineString(list(self.shapely_poly.exterior.coords))
+
+            self.scikit_poly = sg.Polygon([(p.x, p.y) for p in golf_map.vertices])
+            skel = sg.skeleton.create_interior_straight_skeleton(self.scikit_poly)
+            self.draw_skeleton(self.scikit_poly, skel)
+            self.construct_nodes(target)
+            if DEBUG_MSG:
+                draw(self.scikit_poly)
+                for v in self.graph.keys():
+                    plt.plot(v[0], v[1], 'bo')
+                plt.savefig('skel.png')
+
+            self.construct_land_bridges(start)
+            if DEBUG_MSG:
+                draw(self.scikit_poly)
+                for v in self.graph.keys():
+                    plt.plot(v[0], v[1], 'bo')
+                plt.savefig('land.png')
+
+            self.construct_more_nodes(start)
+            if DEBUG_MSG:
+                draw(self.scikit_poly)
+                for v in self.graph.keys():
+                    plt.plot(v[0], v[1], 'bo')
+                plt.savefig('more.png')
+                
+                if self.needs_edge_init:
+                    self.construct_edges(start, target, only_construct_from_source=False)
+                    self.needs_edge_init = False
 
             # Dump the objects
             with open(precomp_path, 'wb') as f:
-                pickle.dump([self.obj0, self.obj1, self.obj2], f) """
-
-        self.skill = skill
-        self.rng = rng
-        self.logger = logger
-
-        self.shapely_poly = None
-        self.shapely_edges = None
-        self.scikit_poly = None
-        self.graph = {}  # self.graph[node_i] contains a list of edges where each edge_j = (node_j, weight, f_count)
-        # self.all_nodes_center = {}
-        self.needs_edge_init = True
-        self.critical_pts = []
+                pickle.dump([self.shapely_poly, self.shapely_edges, self.graph, self.critical_pts], f)
+        
 
     def draw_skeleton(self, polygon, skeleton, show_time=False):
         draw(polygon)
@@ -397,8 +428,9 @@ class Player:
                                                         new_nodes.append(stop_point)
                                         hyp = hyp / 3
         #if (self.skill < 80 and len(list(self.shapely_poly.exterior.coords)) > 20):
-        if (len(new_nodes) > 2 * len(self.graph.keys()) and len(new_nodes) > 300):
-            mod = round(len(new_nodes)/(300 - len(self.graph.keys())))
+        total_nodes = len(new_nodes) + len(self.graph.keys())
+        if (len(new_nodes) > 2 * len(self.graph.keys()) and total_nodes > 500):
+            mod = round(len(new_nodes)/(500 - len(self.graph.keys())))
             new_nodes = new_nodes[::mod]
         for node in new_nodes:
             self.graph[node] = []
@@ -649,39 +681,9 @@ class Player:
             - more specific map with .05m-sized nodes 20m around from current point
          """
 
-        if score == 1:  # turn 1
-            self.shapely_poly = Polygon([(p.x, p.y) for p in golf_map.vertices])
-            self.shapely_edges = LineString(list(self.shapely_poly.exterior.coords))
-            self.scikit_poly = sg.Polygon([(p.x, p.y) for p in golf_map.vertices])
-            skel = sg.skeleton.create_interior_straight_skeleton(self.scikit_poly)
-            self.draw_skeleton(self.scikit_poly, skel)
-            self.construct_nodes(target)
-            if DEBUG_MSG:
-                draw(self.scikit_poly)
-                for v in self.graph.keys():
-                    plt.plot(v[0], v[1], 'bo')
-                plt.savefig('skel.png')
-
-            self.construct_land_bridges(curr_loc)
-            if DEBUG_MSG:
-                draw(self.scikit_poly)
-                for v in self.graph.keys():
-                    plt.plot(v[0], v[1], 'bo')
-                plt.savefig('land.png')
-
-            self.construct_more_nodes(curr_loc)
-            if DEBUG_MSG:
-                draw(self.scikit_poly)
-                for v in self.graph.keys():
-                    plt.plot(v[0], v[1], 'bo')
-                plt.savefig('more.png')
+        #if score == 1:  # turn 1
             
-
-            if self.needs_edge_init:
-                self.construct_edges(curr_loc, target, only_construct_from_source=False)
-                self.needs_edge_init = False
-
-        else:
+        if score != 1:
             self.construct_edges(curr_loc, target,
                                  only_construct_from_source=True)  # only construct outgoing edges of curr_loc
         max_score = 0
