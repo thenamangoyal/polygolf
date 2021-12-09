@@ -250,9 +250,14 @@ class GolfGame:
             for player_idx, distance_from_target in enumerate(self.distances_from_target):
                 self.logger.info("{} final distance from target: {:.3f}".format(self.player_names[player_idx], distance_from_target))
 
-            scores_array = np.array(self.scores, dtype=np.int) 
-            winner_list_idx = np.argwhere(scores_array == np.amin(scores_array))
-            self.winner_list = [self.player_names[i[0]] for i in winner_list_idx if self.player_states[i[0]] == "S"] # winner(s) should have min score and should solve the game
+            winner_list_idx = [idx for idx in range(len(self.player_names)) if self.player_states[idx] == "S"] # winner(s) should solve the game
+            if len(winner_list_idx):
+                scores_array = np.array([self.scores[idx] for idx in winner_list_idx], dtype=np.int)
+                modified_winner_list_idx = np.argwhere(scores_array == np.amin(scores_array)).squeeze(axis=1) # winner(s) should have min score too
+                final_winner_list_idx = [winner_list_idx[i] for i in modified_winner_list_idx]
+                self.winner_list = [self.player_names[i] for i in final_winner_list_idx]
+            else:
+                self.winner_list = []
 
             self.logger.info("Winner{}: {}".format("s" if len(self.winner_list) > 1 else "", ", ".join(self.winner_list)))
             if self.use_gui:
