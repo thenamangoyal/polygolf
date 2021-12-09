@@ -16,6 +16,8 @@ from scipy.spatial.distance import cdist
 
 # Cached distribution
 DIST = scipy_stats.norm(0, 1)
+X_STEP = 5.0
+Y_STEP = 5.0
 
 
 @functools.lru_cache()
@@ -68,11 +70,11 @@ def poly_to_points(poly: Polygon) -> Iterator[Tuple[float, float]]:
         x_max = max(x, x_max)
         y_min = min(y, y_min)
         y_max = max(y, y_max)
-    x_step = 5.0  # meter
-    y_step = 5.0  # meter
+    x_step = X_STEP
+    y_step = Y_STEP
 
-    x_current = x_min + x_step
-    y_current = y_min + y_step
+    x_current = x_min
+    y_current = y_min
     while x_current < x_max:
         while y_current < y_max:
             yield float(x_current), float(y_current)
@@ -184,6 +186,11 @@ class Player:
         # Cached data
         max_dist = 200 + self.skill
         self.max_ddist = scipy_stats.norm(max_dist, max_dist / self.skill)
+
+        # Conf level
+        self.conf = 0.95
+        if self.skill < 40:
+            self.conf = 0.75
 
     @functools.lru_cache()
     def _max_ddist_ppf(self, conf: float):
@@ -317,7 +324,7 @@ class Player:
             return self.prev_rv
 
         target_point = None
-        confidence = 0.95
+        confidence = self.conf
         cl = float(curr_loc.x), float(curr_loc.y)
         while target_point is None:
             if confidence <= 0.5:
@@ -330,17 +337,18 @@ class Player:
         # fixup target
         current_point = np.array(tuple(curr_loc)).astype(float)
         if tuple(target_point) == self.goal:
-            dist = np.linalg.norm(np.array(target_point) - current_point)
+            original_dist = np.linalg.norm(np.array(target_point) - current_point)
             v = np.array(target_point) - current_point
-            u = v / dist
-            if dist >= 20.0:
-                roll_distance = dist / 10
+            # Unit vector pointing from current to target
+            u = v / original_dist
+            if original_dist >= 20.0:
+                roll_distance = original_dist / 20
                 max_offset = roll_distance
                 offset = 0
                 prev_target = target_point
                 while offset < max_offset and self.splash_zone_within_polygon(tuple(current_point), target_point, confidence):
                     offset += 1
-                    dist = dist - offset
+                    dist = original_dist - offset
                     prev_target = target_point
                     target_point = current_point + u * dist
                 target_point = prev_target
