@@ -302,7 +302,7 @@ class Player:
 
         candidates = [
             (distance, angle)
-            for distance in list(range(1, 20)) + list(range(20, self.max_dist, 4)) + [self.max_dist]
+            for distance in list(range(1, 20)) + list(range(20, self.max_dist, 3)) + [self.max_dist]
             for angle in [2 * math.pi * (i / 72) for i in range(72)] + [target_angle]
         ]
         random.shuffle(candidates)
