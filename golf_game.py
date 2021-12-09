@@ -153,7 +153,10 @@ class GolfGame:
             if not os.path.isdir(precomp_dir):
                 os.makedirs(precomp_dir)
             player_map_path = slugify(self.golf.map_filepath)
+            start_time = time.time()
             player = player_class(skill=skill, rng=self.rng, logger=self.__get_player_logger(player_name), golf_map=self.golf.golf_map.copy(), start=self.golf.start.copy(), target=self.golf.target.copy(), map_path=player_map_path, precomp_dir=precomp_dir)
+            init_time = time.time() - start_time
+            self.logger.info("Initializing player {} took {:.3f}s".format(player_name, init_time))
             self.players.append(player)
             self.player_names.append(player_name)
             self.skills.append(skill)
@@ -162,7 +165,7 @@ class GolfGame:
             self.curr_locs.append(self.golf.start.copy())
             self.scores.append(0)
             self.penalties.append(0)
-            self.time_taken.append([])
+            self.time_taken.append([init_time])
             self.timeout_count.append(0)
             self.error_count.append(0)
         else:
@@ -198,9 +201,15 @@ class GolfGame:
             total_time = np.zeros(len(self.players))
             for player_idx, player_time_taken in enumerate(self.time_taken):
                 player_time_taken_flatten = np.array(player_time_taken)
+                
                 if player_time_taken_flatten.size == 0:
-                    player_time_taken_flatten = np.zeros(1)
-                self.logger.info("{} took {} steps, total time {:.3f}s, avg step time {:.3f}s, max step time {:.3f}s".format(self.player_names[player_idx], player_time_taken_flatten.size, np.sum(player_time_taken_flatten), np.mean(player_time_taken_flatten), np.amax(player_time_taken_flatten)))
+                    player_time_taken_flatten = np.zeros(2)
+                elif player_time_taken_flatten.size == 1:
+                    player_time_taken_flatten = np.append(player_time_taken_flatten, 0)
+                
+                self.logger.info("{} total time {:.3f}s, init time {:.3f}s, total step time: {:.3f}s".format(self.player_names[player_idx], np.sum(player_time_taken_flatten), player_time_taken_flatten[0], np.sum(player_time_taken_flatten[1:])))
+
+                self.logger.info("{} took {} steps, avg time {:.3f}s, avg step time {:.3f}s, max step time {:.3f}s".format(self.player_names[player_idx], player_time_taken_flatten.size - 1, np.mean(player_time_taken_flatten), np.mean(player_time_taken_flatten[1:]), np.amax(player_time_taken_flatten[1:])))
                 total_time[player_idx] = np.sum(player_time_taken_flatten)
             self.logger.info("Total time taken by all players {:.3f}s".format(np.sum(total_time)))
             total_time_sort_idx = np.argsort(total_time)[::-1]
