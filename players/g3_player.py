@@ -13,7 +13,7 @@ from scipy.spatial import KDTree
 
 import constants
 
-SAMPLE_LIMIT = 1000  # approx. count of sampled points
+SAMPLE_LIMIT = 3000  # approx. count of sampled points
 MINIMUM_SAMPLE_DISTANCE = 20  # minimum distance between sampled points
 
 RANDOM_COUNT = 60  # repeat times of sampling normal distributions
@@ -161,38 +161,40 @@ class Player:
             map_path (str): File path to map
             precomp_dir (str): Directory path to store/load precomputation
         """
-        # # if depends on skill
-        # precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
-        # # if doesn't depend on skill
-        # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
-        
-        # # precompute check
-        # if os.path.isfile(precomp_path):
-        #     # Getting back the objects:
-        #     with open(precomp_path, "rb") as f:
-        #         self.obj0, self.obj1, self.obj2 = pickle.load(f)
-        # else:
-        #     # Compute objects to store
-        #     self.obj0, self.obj1, self.obj2 = _
-
-        #     # Dump the objects
-        #     with open(precomp_path, 'wb') as f:
-        #         pickle.dump([self.obj0, self.obj1, self.obj2], f)
         self.skill = skill
         self.rng = rng
         self.logger = logger
 
         self.max_dist = constants.max_dist + self.skill
 
-        self.need_initialization = True
+        self.need_initialization = False
 
-        self.sampled_points = None
-        self.sample_dist = None
-        self.scores: Dict[PointF, float] = dict()
+        # for numeric computation
+        golf_map_f = list()
+        for v in golf_map.vertices:
+            golf_map_f.append(to_numeric_point(v))
+        self.target_f = target_f = to_numeric_point(target)
+        self.golf_map_f = np.asarray([(p.x, p.y) for p in golf_map_f], dtype=np.float64)
 
-        self.kdt: KDTree = None
-        self.target_f = None
-        self.golf_map_f = None
+        precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
+        if os.path.isfile(precomp_path):
+            with open(precomp_path, "rb") as f:
+                self.sample_dist, self.sampled_points, self.scores, self.kdt = pickle.load(f)
+        else:
+            self.sample_dist, self.sampled_points = sample_points_inside_polygon(golf_map, self.golf_map_f)
+
+            # calculate scores
+            self.scores: Dict[PointF, float] = dict()
+            self.calc_scores(target_f, self.max_dist)
+
+            # build KD-Tree
+            self.kdt = KDTree([(p.x, p.y) for p in self.sampled_points])
+
+            with open(precomp_path, 'wb') as f:
+                pickle.dump([self.sample_dist, self.sampled_points, self.scores, self.kdt], f)
+
+        self.logger.debug(f"# of sampled points: {len(self.sampled_points)}")
+        self.logger.debug(f"max score: {max(self.scores.values())}")
 
     def calc_scores(self, target: PointF, max_d: float):
         # naive BFS
@@ -207,28 +209,6 @@ class Player:
                     continue
                 self.scores[p] = cur_score + 1 + 1e-10 * dist(p, cur)
                 queue.append(p)
-
-    def initialize(self, golf_map: sympy.Polygon, target: sympy.Point2D):
-        self.need_initialization = False
-
-        # for numeric computation
-        golf_map_f = list()
-        for v in golf_map.vertices:
-            golf_map_f.append(to_numeric_point(v))
-        self.target_f = target_f = to_numeric_point(target)
-        self.golf_map_f = np.asarray([(p.x, p.y) for p in golf_map_f], dtype=np.float64)
-
-        # sample points
-        self.sample_dist, self.sampled_points = sample_points_inside_polygon(golf_map, self.golf_map_f)
-        self.logger.debug(f"# of sampled points: {len(self.sampled_points)}")
-
-        # calculate scores
-        self.calc_scores(target_f, self.max_dist)
-
-        # build KD-Tree
-        self.kdt = KDTree([(p.x, p.y) for p in self.sampled_points])
-
-        self.logger.debug(f"max score: {max(self.scores.values())}")
 
     def score(self, p: PointF) -> float:
         # return the score of nearest point
@@ -317,9 +297,6 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        if self.need_initialization:
-            self.initialize(golf_map, target)
-
         curr_loc = to_numeric_point(curr_loc)
         target_angle = math.atan2(self.target_f.y - curr_loc.y, self.target_f.x - curr_loc.x)
 
