@@ -86,7 +86,7 @@ class Player:
         self.prev_sample_point = []
 
         self.prev_expected_scores = defaultdict(int)
-        self.max_same_score_times = 2
+        self.max_same_score_times = 1
 
         curr_expected_score = self.get_expected_score(self.point_dict, start)
         self.prev_expected_scores[curr_expected_score] += 1
