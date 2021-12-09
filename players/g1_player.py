@@ -188,7 +188,6 @@ class Player:
         # for i in p:
         #     if(self.point_inside_polygon(self.map.vertices, i)):
         #         contains +=1
-        return 1
         if (check1 & check2):
             return 1
         else:
