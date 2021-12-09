@@ -147,3 +147,6 @@ results/
 
 # Default gen map path
 maps/temp.json
+
+# Precomputation
+precomp/

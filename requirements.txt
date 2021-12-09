@@ -6,3 +6,5 @@ tqdm
 scipy
 matplotlib
 shapely
+numba
+scikit-geometry
