@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 import sympy
 from shapely.geometry import Polygon, Point, LineString
+from shapely.validation import make_valid
 import skgeom as sg
 from skgeom.draw import draw
 import skgeom as sg
@@ -84,9 +85,9 @@ class Player:
                     plt.plot(v[0], v[1], 'bo')
                 plt.savefig('more.png')
                 
-                if self.needs_edge_init:
-                    self.construct_edges(start, target, only_construct_from_source=False)
-                    self.needs_edge_init = False
+            if self.needs_edge_init:
+                self.construct_edges(start, target, only_construct_from_source=False)
+                self.needs_edge_init = False
 
             # Dump the objects
             with open(precomp_path, 'wb') as f:
@@ -157,7 +158,7 @@ class Player:
     def construct_land_bridges(self, curr_loc):
         since = time.time()
 
-        if len(list(self.shapely_poly.exterior.coords)) > 20:
+        if len(list(self.shapely_poly.exterior.coords)) < 20:
             skill_dist_range = 150
         else:
             skill_dist_range = 200 + self.skill
@@ -308,7 +309,7 @@ class Player:
 
                                     theta = math.atan(d_y / d_x)
 
-                                    hyp = distance*0.3
+                                    hyp = distance*0.2
                                     bridge_0_count = 0
                                     bridge_1_count = 0
                                     while (hyp > distance*0.01):
@@ -347,7 +348,7 @@ class Player:
                                                     stop_point = (bridge_1[0] + offset_x, bridge_1[1] + offset_y)
                                                     if self.shapely_poly.contains(Point(stop_point[0], stop_point[1])):
                                                         new_nodes.append(stop_point)
-                                        hyp = hyp / 3
+                                        hyp = hyp / 2
                                         
             else:
                 for to_node in self.graph.keys():
@@ -387,7 +388,7 @@ class Player:
 
                                     theta = math.atan(d_y / d_x)
 
-                                    hyp = distance*0.3
+                                    hyp = distance*0.2
                                     bridge_0_count = 0
                                     bridge_1_count = 0
                                     while (hyp > distance*0.01):
@@ -426,7 +427,7 @@ class Player:
                                                     stop_point = (bridge_1[0] + offset_x, bridge_1[1] + offset_y)
                                                     if self.shapely_poly.contains(Point(stop_point[0], stop_point[1])):
                                                         new_nodes.append(stop_point)
-                                        hyp = hyp / 3
+                                        hyp = hyp / 2
         #if (self.skill < 80 and len(list(self.shapely_poly.exterior.coords)) > 20):
         total_nodes = len(new_nodes) + len(self.graph.keys())
         if (len(new_nodes) > 2 * len(self.graph.keys()) and total_nodes > 500):
@@ -483,7 +484,7 @@ class Player:
                                 risk = self.calculate_risk((curr_loc[0], curr_loc[1]), to_node)
                                 self.graph[from_node].append([to_node, risk])
 
-                    elif self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node) <= skill_dist_range + epsilon:
+                    elif self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node) <= skill_dist_range:
                         risk = self.calculate_risk((curr_loc[0], curr_loc[1]), to_node)
                         self.graph[from_node].append([to_node, risk])
 
@@ -512,7 +513,7 @@ class Player:
                                 risk = self.calculate_risk(from_node, to_node)
                                 self.graph[from_node].append([to_node, risk])
                     
-                    elif self._euc_dist(from_node, to_node) <= skill_dist_range + epsilon:
+                    elif self._euc_dist(from_node, to_node) <= skill_dist_range:
                         risk = self.calculate_risk(from_node, to_node)
                         self.graph[from_node].append([to_node, risk])
 
@@ -585,6 +586,7 @@ class Player:
         #print(len(points))
         #cone = sg.Polygon(points)
         cone = Polygon(points)
+        cone = make_valid(cone)
         #cone_area = cone.area()
         cone_area = cone.area
 
