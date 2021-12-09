@@ -21,7 +21,7 @@ from players.g8_player import Player as G8_Player
 from players.g9_player import Player as G9_Player
 
 
-return_vals = ["player_names", "skills", "scores", "player_states", "penalties", "timeout_count", "error_count", "winner_list", "total_time_sorted",]
+return_vals = ["player_names", "map", "skills", "scores", "player_states", "distances_from_target", "distance_source_to_target", "start", "target", "penalties", "timeout_count", "error_count", "winner_list", "total_time_sorted",]
 
 class GolfGame:
     def __init__(self, player_list, args):
@@ -91,6 +91,11 @@ class GolfGame:
 
         self.winner_list = None
         self.total_time_sorted = None
+        self.distances_from_target = None
+        self.map = self.golf.map_filepath
+        self.start = np.array(self.golf.start).astype(float).tolist()
+        self.target = np.array(self.golf.target).astype(float).tolist()
+        self.distance_source_to_target = float(self.golf.start.distance(self.golf.target))
 
         self.processing_turn = False
         self.end_message_printed = False
@@ -235,7 +240,16 @@ class GolfGame:
 
             for player_idx, score in enumerate(self.scores):
                 self.logger.info("{} score: {}".format(self.player_names[player_idx], score))
+
+            for player_idx, player_state in enumerate(self.player_states):
+                self.logger.info("{} final player state: {}".format(self.player_names[player_idx], player_state))
             
+
+            self.logger.info("Distance from source to target {:.3f}".format(self.distance_source_to_target))
+            self.distances_from_target = [float(self.curr_locs[player_idx].distance(self.golf.target)) if self.player_states[player_idx] != "S" else 0.0 for player_idx in range(len(self.player_names))]
+            for player_idx, distance_from_target in enumerate(self.distances_from_target):
+                self.logger.info("{} final distance from target: {:.3f}".format(self.player_names[player_idx], distance_from_target))
+
             scores_array = np.array(self.scores, dtype=np.int) 
             winner_list_idx = np.argwhere(scores_array == np.amin(scores_array))
             self.winner_list = [self.player_names[i[0]] for i in winner_list_idx if self.player_states[i[0]] == "S"] # winner(s) should have min score and should solve the game
