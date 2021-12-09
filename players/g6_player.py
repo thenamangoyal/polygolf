@@ -15,7 +15,7 @@ import time
 
 from sympy.geometry.point import Point2D
 
-DEBUG_MSG = False  # enable print messages
+DEBUG_MSG = True  # enable print messages
 
 
 class Player:
@@ -32,23 +32,24 @@ class Player:
             map_path (str): File path to map
             precomp_dir (str): Directory path to store/load precomputation
         """
-        # # if depends on skill
-        # precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
+        """ # if depends on skill
+        precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
         # # if doesn't depend on skill
         # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
         
-        # # precompute check
-        # if os.path.isfile(precomp_path):
-        #     # Getting back the objects:
-        #     with open(precomp_path, "rb") as f:
-        #         self.obj0, self.obj1, self.obj2 = pickle.load(f)
-        # else:
-        #     # Compute objects to store
-        #     self.obj0, self.obj1, self.obj2 = _
+        # precompute check
+        if os.path.isfile(precomp_path):
+            # Getting back the objects:
+            with open(precomp_path, "rb") as f:
+                self.obj0, self.obj1, self.obj2 = pickle.load(f)
+        else:
+            # Compute objects to store
+            self.obj0, self.obj1, self.obj2 = _
 
-        #     # Dump the objects
-        #     with open(precomp_path, 'wb') as f:
-        #         pickle.dump([self.obj0, self.obj1, self.obj2], f)
+            # Dump the objects
+            with open(precomp_path, 'wb') as f:
+                pickle.dump([self.obj0, self.obj1, self.obj2], f) """
+
         self.skill = skill
         self.rng = rng
         self.logger = logger
@@ -125,9 +126,12 @@ class Player:
     def construct_land_bridges(self, curr_loc):
         since = time.time()
 
-        skill_dist_range = 200 + self.skill
+        if len(list(self.shapely_poly.exterior.coords)) > 20:
+            skill_dist_range = 150
+        else:
+            skill_dist_range = 200 + self.skill
 
-        skill_stops = 1
+        skill_stops = 2
 
         new_nodes = []
         for from_node in self.graph.keys():
@@ -163,7 +167,7 @@ class Player:
                             else:
                                 theta = math.atan(d_y / d_x)
                             
-                            for n in range(num_stops + skill_stops - 1):
+                            for n in range(num_stops):
                                 offset_y = (n + 1) * len_stop * math.sin(theta)
                                 offset_x = (n + 1) * len_stop * math.cos(theta)
 
@@ -201,7 +205,7 @@ class Player:
                             else:
                                 theta = math.atan(d_y / d_x)
 
-                            for n in range(num_stops + skill_stops - 1):
+                            for n in range(num_stops):
                                 offset_y = (n + 1) * len_stop * math.sin(theta)
                                 offset_x = (n + 1) * len_stop * math.cos(theta)
 
@@ -276,7 +280,7 @@ class Player:
                                     hyp = distance*0.3
                                     bridge_0_count = 0
                                     bridge_1_count = 0
-                                    while (not bridge_0_count or not bridge_1_count):
+                                    while (hyp > distance*0.01):
                                         
                                         offset_y = hyp * math.sin(theta)
                                         offset_x = hyp * math.cos(theta)
@@ -355,7 +359,7 @@ class Player:
                                     hyp = distance*0.3
                                     bridge_0_count = 0
                                     bridge_1_count = 0
-                                    while (not bridge_0_count or not bridge_1_count):
+                                    while (hyp > distance*0.01):
                                         offset_y = hyp * math.sin(theta)
                                         offset_x = hyp * math.cos(theta)
 
@@ -393,7 +397,7 @@ class Player:
                                                         new_nodes.append(stop_point)
                                         hyp = hyp / 3
         #if (self.skill < 80 and len(list(self.shapely_poly.exterior.coords)) > 20):
-        if (len(new_nodes) > 300):
+        if (len(new_nodes) > 2 * len(self.graph.keys()) and len(new_nodes) > 300):
             mod = round(len(new_nodes)/(300 - len(self.graph.keys())))
             new_nodes = new_nodes[::mod]
         for node in new_nodes:
@@ -475,8 +479,8 @@ class Player:
                             else:
                                 risk = self.calculate_risk(from_node, to_node)
                                 self.graph[from_node].append([to_node, risk])
-                    # if the distance between the two Node centers is reachable, add to from_node's adjacency list
-                    elif self._euc_dist(from_node, to_node) <= skill_dist_range:
+                    
+                    elif self._euc_dist(from_node, to_node) <= skill_dist_range + epsilon:
                         risk = self.calculate_risk(from_node, to_node)
                         self.graph[from_node].append([to_node, risk])
 
@@ -603,6 +607,7 @@ class Player:
                 queue.append(new_path)
         if len(final_path) < 2:
             if DEBUG_MSG:
+                print("sanity check: ", str(len(final_path)))
                 print("time for bfs:", time.time() - since)
             return "default"
 
