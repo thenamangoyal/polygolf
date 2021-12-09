@@ -158,8 +158,8 @@ class Player:
     def is_safe(self, d, angle, start_point,confidence_level=1):
         #to do add confidence bounds
         denumerator =0
-        angle_2std = ((1/(2*self.skill)))*(confidence_level)
-        distance_2std = (0.9*d/self.skill)*(confidence_level)
+        angle_2std = ((1/(self.skill)))*(confidence_level)
+        distance_2std = (2*d/self.skill)*(confidence_level)
         min_distance = d-distance_2std
         max_distance = d+(d*0.1)+distance_2std
         begin_line1 = (start_point.x + (min_distance)*math.cos(angle - angle_2std ), start_point.y + (min_distance)*math.sin(angle -angle_2std ))
@@ -217,18 +217,19 @@ class Player:
         else:
             return 0
 
-    def adjacent_cells(self, point, closedSet):
+    def adjacent_cells(self, point, closedSet,openSet):
         current_point = np.array(point).astype(float)
         nei , dis = self.numpy_adjacent_and_dist(current_point)
         if self.is_neighbour(point, self.target):
             print('target close!')
             yield (self.target)
         for i in nei:
-            n = np.array(i).astype(float)
-            required_dist = np.linalg.norm(current_point - np.array(n).astype(float))
-            angle = sympy.atan2(n[1] - current_point[1], n[0] - current_point[0])
-            if (self.is_safe(required_dist,angle,Point2D(point))):
-                yield tuple(i)
+            if (tuple(i) not in closedSet and tuple(i) not in openSet):
+                n = np.array(i).astype(float)
+                required_dist = np.linalg.norm(current_point - np.array(n).astype(float))
+                angle = sympy.atan2(n[1] - current_point[1], n[0] - current_point[0])
+                if (self.is_safe(required_dist,angle,Point2D(point))):
+                    yield tuple(i)
 
         # neighbours = []
         # if self.is_neighbour(point, self.target):
@@ -266,15 +267,15 @@ class Player:
                     next_pointC = next_pointC.previous
                 self.initial_path.reverse()
                 return next_pointC.point
-            #openSet.remove(next_point)
+            openSet.remove(next_point)
             closedSet.add(next_point)
-            neighbours = self.adjacent_cells(next_point, closedSet)
+            neighbours = self.adjacent_cells(next_point, closedSet,openSet)
             for n in neighbours :
                 if n not in closedSet:
                     cell = Cell(n, self.target, next_pointC.actual_cost +1 , next_pointC)
                     if (next_pointC.actual_cost +1 <=10 - self.turns):
                         #if (n not in node_dict or cell.total_cost() < node_dict(n)):
-                            #openSet.add(n)
+                            openSet.add(n)
                             node_dict[n] = cell.total_cost()
                             heapq.heappush(openHeap, cell )
         return []
