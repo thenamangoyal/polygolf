@@ -347,6 +347,14 @@ class Player:
             if (len(next_point) == 0):
                 next_point = self.aStar(curr_loc, target , 3 )
                 conf=3
+            if (len(next_point) == 0):
+                required_dist = curr_loc.distance(target)
+                roll_factor = 1.1
+                if required_dist < 20:
+                    roll_factor  = 1.0
+                distance = sympy.Min(200+self.skill, required_dist/roll_factor)
+                angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
+                return (required_dist, angle)
             required_dist = curr_loc.distance(next_point)
             angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
             if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
