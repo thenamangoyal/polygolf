@@ -359,39 +359,54 @@ class GolfGame:
         else:
             self.scores[player_idx] += 1
             try:
+                time_limit_already_exceeded = False
                 if self.use_timeout:
-                    signal.signal(signal.SIGALRM, timeout_handler)
-                    signal.alarm(constants.timeout)
-                try:
-                    start_time = time.time()
-                    prev_loc = None
-                    prev_landing_point = None
-                    prev_admissible = None
-                    if len(self.played[player_idx]):
-                        last_step_play_dict = self.played[player_idx][-1]
-                        prev_loc = last_step_play_dict["last_location"].copy()
-                        prev_landing_point = last_step_play_dict["observed_landing_point"].copy()
-                        prev_admissible = last_step_play_dict["admissible"]
-                    returned_action = self.players[player_idx].play(
-                        score=self.scores[player_idx],
-                        golf_map=self.golf.golf_map.copy(),
-                        target=self.golf.target.copy(),
-                        curr_loc=self.curr_locs[player_idx].copy(),
-                        prev_loc=prev_loc,
-                        prev_landing_point=prev_landing_point,
-                        prev_admissible=prev_admissible)
-                    if self.use_timeout:
-                        signal.alarm(0)      # Clear alarm
-                except TimeoutException:
-                    self.logger.error("Timeout {} since {:.3f}s reached.".format(self.player_names[player_idx], constants.timeout))
+                    remaining_time = np.ceil(constants.timeout - np.sum(self.time_taken[player_idx])).astype(int)
+                    if remaining_time > 0:
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(remaining_time)
+                    else:
+                        time_limit_already_exceeded = True
+                if not time_limit_already_exceeded:
+                    try:
+                        start_time = time.time()
+                        prev_loc = None
+                        prev_landing_point = None
+                        prev_admissible = None
+                        if len(self.played[player_idx]):
+                            last_step_play_dict = self.played[player_idx][-1]
+                            prev_loc = last_step_play_dict["last_location"].copy()
+                            prev_landing_point = last_step_play_dict["observed_landing_point"].copy()
+                            prev_admissible = last_step_play_dict["admissible"]
+                        returned_action = self.players[player_idx].play(
+                            score=self.scores[player_idx],
+                            golf_map=self.golf.golf_map.copy(),
+                            target=self.golf.target.copy(),
+                            curr_loc=self.curr_locs[player_idx].copy(),
+                            prev_loc=prev_loc,
+                            prev_landing_point=prev_landing_point,
+                            prev_admissible=prev_admissible)
+                        if self.use_timeout:
+                            signal.alarm(0)      # Clear alarm
+                    except TimeoutException:
+                        self.logger.error("Timeout {} since {:.3f}s reached.".format(self.player_names[player_idx], constants.timeout))
+                        returned_action = None
+                        self.timeout_count[player_idx] += 1
+                        self.scores[player_idx] = constants.max_tries
+                    
+                    step_time = time.time() - start_time
+                    self.time_taken[player_idx].append(step_time)
+                
+                else:                    
+                    self.logger.error("Skipping {} since time limit of {:.3f}s already exceeded and already ran for {:.3f}s.".format(self.player_names[player_idx], constants.timeout, np.sum(self.time_taken[player_idx])))
                     returned_action = None
                     self.timeout_count[player_idx] += 1
-                step_time = time.time() - start_time
-                self.time_taken[player_idx].append(step_time)
+                    self.scores[player_idx] = constants.max_tries
             except Exception as e:
                 self.logger.error(e, exc_info=True)
                 returned_action = None
                 self.error_count[player_idx] += 1
+                self.scores[player_idx] = constants.max_tries
 
             is_valid_action = self.__check_action(returned_action)
             if is_valid_action:
