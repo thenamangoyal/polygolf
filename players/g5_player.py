@@ -48,7 +48,7 @@ def convert_sympy_shapely(point):
 
 def predict_num_shots(distance_to_hole, skill):
     max_distance = 200 + skill
-    distance_groups = [0, 20, 100] + ([200 + skill - 20] * 10)
+    distance_groups = [0, 20, 100] + ([(200 + skill - 20) * i for i in range(10)])
     for i in range(len(distance_groups)):
         if int(distance_to_hole) <= distance_groups[i]:
             dg = i
@@ -74,8 +74,8 @@ def score_paths(start_point, target, paths_to_search, polygon, skill, rng,if_pri
     all_h = np.array([path.heuristic(start_to_hole_distance, skill) for path in paths_to_search])
     all_c = np.array([path.confidence(polygon, skill, rng) for path in paths_to_search])
     # all_c = np.where(all_c > 0.8, 0.8, all_c)
-    all_h = norm_0_1(all_h)
-    all_c = norm_0_1(all_c)
+    # all_h = norm_0_1(all_h)
+    # all_c = norm_0_1(all_c)
 
     if if_print:
         l = []
@@ -84,7 +84,7 @@ def score_paths(start_point, target, paths_to_search, polygon, skill, rng,if_pri
         l.sort(key = lambda x: x[2] + x[3])
         print("lps: ", l)
 
-    best_i = np.argmax(all_h + all_c)
+    best_i = np.argmin(all_h + all_c)
     return paths_to_search[best_i]
 
 
@@ -183,15 +183,18 @@ class LandingPoint(object):
                 actual_angle = rng.normal(intended_angle, 1 / (2 * skill))
                 if is_roll_in_polygon(self.start_point, actual_distance, actual_angle, polygon):
                     successful += 1
-            self.shot_confidence = successful / self.trials
+            frac = (successful / self.trials)
+            frac = frac if frac != 0 else 0.05
+            self.shot_confidence = 1 / frac
             return self.shot_confidence
 
     def heuristic(self, initial_distance, skill):
         final_point = get_roll_final_point(self.start_point, self.distance_from_origin, self.angle_from_origin)
         distance_to_hole = final_point.distance(self.hole)
-        distance_to_hole = 1 if distance_to_hole < 1 else distance_to_hole
-        # self.normalized_hueristic = (initial_distance - distance_to_hole) / (initial_distance)
-        self.h = (200 + skill) / distance_to_hole
+        # distance_to_hole = 1 if distance_to_hole < 1 else distance_to_hole
+        # # self.normalized_hueristic = (initial_distance - distance_to_hole) / (initial_distance)
+        # self.h = (200 + skill) / distance_to_hole
+        self.h = predict_num_shots(distance_to_hole, skill)
         return self.h
 
     def score(self, polygon, skill, rng, initial_distance):
@@ -205,12 +208,12 @@ class MultipleLandingPoints:
         self.path = [start_lp]
 
     def heuristic(self, initial_distance, skill):
-        return self.path[-1].heuristic(initial_distance, skill) / len(self.path)
+        return self.path[-1].heuristic(initial_distance, skill)
 
     def confidence(self, polygon, skill, rng):
-        total = 1
+        total = 0
         for lp in self.path:
-            total *= lp.confidence(polygon, skill, rng)
+            total += lp.confidence(polygon, skill, rng)
         return total
 
     def score(self, polygon, skill, rng, initial_distance):
