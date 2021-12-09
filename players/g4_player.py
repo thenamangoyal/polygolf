@@ -352,12 +352,16 @@ class Player:
         if len(self.prev_expected_scores) > 0:
             curr_expected_score = min(curr_expected_score, min(self.prev_expected_scores.keys()))
 
-        smallest_score = min(sorted_points_score.values())
+        if len(sorted_points_score) == 0:
+            smallest_score = curr_expected_score
+        else:
+            smallest_score = min(sorted_points_score.values())
 
         middle_point_max_succ_times = -1
         now_max_succ_times = -1
         prev_sample_point_1 = None
         prev_sample_point_2 = None
+        desire_distance_1, desire_angle_1 = None, None
         if curr_expected_score > smallest_score:
             self.logger.info(str(self.turn) + "max_possible_score < curr_expected_score")
             max_possible_score = curr_expected_score - 0.5
@@ -510,7 +514,8 @@ class Player:
                 self.logger.info(str(self.turn) + "choose new sample points around the middle points")
 
         if middle_point_max_succ_times > safe_point_max_succ_times_2:
-            desire_distance_2, desire_angle_2 = desire_distance_1, desire_angle_1
+            if desire_distance_1 and desire_angle_1:
+                desire_distance_2, desire_angle_2 = desire_distance_1, desire_angle_1
 
         now_max_succ_times_2 = max(safe_point_max_succ_times_2, middle_point_max_succ_times)
         if now_max_succ_times > now_max_succ_times_2:
@@ -552,17 +557,20 @@ class Player:
 
         # if there are many ways to go, delete the points that can go back
         middle_points = []
-        for i, middle_point in enumerate(temp_middle_points):
-            if quadrant is None:
-                expected_score = self.get_expected_score(self.point_dict, middle_point)
-                if expected_score > max_possible_score:
-                    continue
-            else:
-                curr_to_mid_quadranty, curr_to_mid_quadrantx = middle_point.y - curr_loc.y, middle_point.x - curr_loc.x
-                if curr_to_mid_quadranty * quadranty < 0 or curr_to_mid_quadrantx * quadrantx < 0:
-                    continue
+        if quadrant and desire_angle:
+            for i, middle_point in enumerate(temp_middle_points):
+                if quadrant is None:
+                    expected_score = self.get_expected_score(self.point_dict, middle_point)
+                    if expected_score > max_possible_score:
+                        continue
+                else:
+                    curr_to_mid_quadranty, curr_to_mid_quadrantx = middle_point.y - curr_loc.y, middle_point.x - curr_loc.x
+                    if curr_to_mid_quadranty * quadranty < 0 or curr_to_mid_quadrantx * quadrantx < 0:
+                        continue
 
-            middle_points.append(middle_point)
+                middle_points.append(middle_point)
+        else:
+            middle_points = temp_middle_points
 
         # if there we delete every point in temp_middle_points,
         # which means we could go longer ways than expected, we need to add back those points
@@ -625,11 +633,15 @@ class Player:
             count += 1
             if count > delta_times / 2:
                 break
-
             delta_middle_point = shapely.geometry.Point(curr_loc.x + delte_distance * sympy.cos(desire_angle),
                                                         curr_loc.y + delte_distance * sympy.sin(desire_angle))
-            expected_score = self.get_expected_score(self.point_dict, delta_middle_point)
-            if not self.shapely_golf_map.contains(delta_middle_point) or expected_score > max_possible_score:
+
+            if quadrant or desire_angle:
+                expected_score = self.get_expected_score(self.point_dict, delta_middle_point)
+                if expected_score > max_possible_score:
+                    continue
+
+            if not self.shapely_golf_map.contains(delta_middle_point):
                 continue
 
             succ_times = 0
@@ -682,7 +694,8 @@ class Player:
         if desire_distance is None:
             self.logger.info(str(self.turn) + "risky!!! select most safe point to middle point to go")
             if len(unsafe_distance2score) == 0:
-                max_succ_times = 0
+                desire_distance = get_distance(safe_middle_point, curr_loc)
+                max_succ_times = unsafe_points[0][1]
             else:
                 unsafe_points = sorted(unsafe_distance2score.items(), key=lambda x: -x[1])
                 desire_distance = unsafe_points[0][0]
