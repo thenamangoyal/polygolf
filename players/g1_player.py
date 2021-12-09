@@ -155,11 +155,15 @@ class Player:
         goal_distances = self.np_goal_dist[distance_mask]
         return reachable_points, goal_distances
 
-    def is_safe(self, d, angle, start_point,confidence_level=1):
+    def is_safe(self, d, angle, start_point,confidence_level,cost):
         #to do add confidence bounds
-        denumerator =0
-        angle_2std = ((1/(self.skill)))*(confidence_level)
-        distance_2std = (2*d/self.skill)*(confidence_level)
+        denumerator2 = 1 if (confidence_level ==1) else 2
+        denumerator1 = 1 if (confidence_level <3 ) else 2
+        if (cost>3 and confidence_level==3):
+            denumerator2=2.5
+            denumerator1 = 2.5
+        angle_2std = 1/(denumerator1*self.skill)
+        distance_2std = 2*d/(denumerator2*self.skill)
         min_distance = d-distance_2std
         max_distance = d+(d*0.1)+distance_2std
         begin_line1 = (start_point.x + (min_distance)*math.cos(angle - angle_2std ), start_point.y + (min_distance)*math.sin(angle -angle_2std ))
@@ -195,7 +199,7 @@ class Player:
 
 
 
-    def is_neighbour(self, curr_loc, target_loc):
+    def is_neighbour(self, curr_loc, target_loc,conf,cost):
         current_point = curr_loc
         target_point = target_loc
         current_point = np.array(current_point).astype(float)
@@ -208,7 +212,7 @@ class Player:
             #is safe to land
             #if(Point2D(self.target).equals(Point2D(target_loc))):
                 #return 1
-            if (self.is_safe(required_dist,angle,Point2D(curr_loc))):
+            if (self.is_safe(required_dist,angle,Point2D(curr_loc),conf,cost)):
                 return 1
             else:
                 return 0
@@ -216,10 +220,10 @@ class Player:
         else:
             return 0
 
-    def adjacent_cells(self, point, closedSet,openSet):
+    def adjacent_cells(self, point, closedSet,openSet,conf,cost):
         current_point = np.array(point).astype(float)
         nei , dis = self.numpy_adjacent_and_dist(current_point)
-        if self.is_neighbour(point, self.target):
+        if self.is_neighbour(point, self.target, conf,cost):
             print('target close!')
             yield (self.target)
         for i in nei:
@@ -227,7 +231,7 @@ class Player:
                 n = np.array(i).astype(float)
                 required_dist = np.linalg.norm(current_point - np.array(n).astype(float))
                 angle = sympy.atan2(n[1] - current_point[1], n[0] - current_point[0])
-                if (self.is_safe(required_dist,angle,Point2D(point))):
+                if (self.is_safe(required_dist,angle,Point2D(point), conf,cost)):
                     yield tuple(i)
 
         # neighbours = []
@@ -244,7 +248,7 @@ class Player:
         #         yield tuple(center)
 
   
-    def aStar( self, current, end):
+    def aStar( self, current, end , conf =1):
         self.initial_path =[]
         cur_loc = tuple(current)
         current = Cell(cur_loc, self.target, 0.0 , cur_loc )
@@ -255,6 +259,7 @@ class Player:
         closedSet = set()
         openSet.add(cur_loc)
         openHeap.append(current)
+        turns =0
         while len(openHeap)>0:
             next_pointC = heapq.heappop(openHeap)
             next_point = next_pointC.point
@@ -268,7 +273,7 @@ class Player:
                 return next_pointC.point
             openSet.remove(next_point)
             closedSet.add(next_point)
-            neighbours = self.adjacent_cells(next_point, closedSet,openSet)
+            neighbours = self.adjacent_cells(next_point, closedSet,openSet , conf , next_pointC.actual_cost)
             for n in neighbours :
                 if n not in closedSet:
                     cell = Cell(n, self.target, next_pointC.actual_cost +1 , next_pointC)
@@ -306,15 +311,14 @@ class Player:
             self.map_shapely = Polygon(shape_map)
             self.max_distance = 200 + self.skill
             self._initialize_map_points(np.array(tuple(target)).astype(float))
+        conf =1
         if(self.turns>0):
             next_point = self.initial_path[0] if len(self.initial_path)>0 else self.target
-            print(next_point)
             if len(self.initial_path)>0:
                 del self.initial_path[0]
             required_dist = curr_loc.distance(next_point)
-            print(required_dist)
             angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
-            if (self.is_safe(required_dist,angle,curr_loc) and required_dist<=200+self.skill):
+            if (self.is_safe(required_dist,angle,curr_loc, conf, 3) and required_dist<=200+self.skill):
                 self.turns = self.turns +1  
                 if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
                     if(required_dist>20):
@@ -322,6 +326,10 @@ class Player:
                 return (required_dist, angle)
             else:
                 next_point = self.aStar(curr_loc, target )
+                if (len(next_point) == 0):
+                    next_point = self.aStar(curr_loc, target , 2 )
+                if (len(next_point) == 0):
+                    next_point = self.aStar(curr_loc, target , 3 )
                 required_dist = curr_loc.distance(next_point)
                 angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
                 if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
@@ -332,7 +340,13 @@ class Player:
                 return (required_dist, angle)
         else:
             next_point = self.aStar(curr_loc, target )
-            print(next_point[0])
+            #print(next_point[0])
+            if (len(next_point) == 0):
+                next_point = self.aStar(curr_loc, target , 2 )
+                conf=2
+            if (len(next_point) == 0):
+                next_point = self.aStar(curr_loc, target , 3 )
+                conf=3
             required_dist = curr_loc.distance(next_point)
             angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
             if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
