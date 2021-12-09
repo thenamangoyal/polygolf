@@ -196,8 +196,6 @@ class Player:
 
     def calc_scores(self, target: PointF, max_d: float):
         # naive BFS
-        max_d2 = max_d ** 2
-
         queue = deque([target])
         self.scores[target] = 0
 
@@ -205,15 +203,10 @@ class Player:
             cur = queue.popleft()
             cur_score = self.scores[cur]
             for p in self.sampled_points:
-                if p in self.scores or dist2(p, cur) >= max_d2:
+                if p in self.scores or dist(p, cur) >= max_d:
                     continue
-                self.scores[p] = cur_score + 1
+                self.scores[p] = cur_score + 1 + 1e-10 * dist(p, cur)
                 queue.append(p)
-
-    def fix_scores(self):
-        # encourage landing near target
-        for k in self.scores.keys():
-            self.scores[k] += dist2(k, self.target_f) / 1e10
 
     def initialize(self, golf_map: sympy.Polygon, target: sympy.Point2D):
         self.need_initialization = False
@@ -231,7 +224,6 @@ class Player:
 
         # calculate scores
         self.calc_scores(target_f, self.max_dist)
-        self.fix_scores()
 
         # build KD-Tree
         self.kdt = KDTree([(p.x, p.y) for p in self.sampled_points])
