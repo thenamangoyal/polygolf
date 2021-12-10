@@ -21,7 +21,7 @@ from players.g8_player import Player as G8_Player
 from players.g9_player import Player as G9_Player
 
 
-return_vals = ["player_names", "skills", "scores", "player_states", "penalties", "timeout_count", "error_count", "winner_list", "total_time_sorted",]
+return_vals = ["player_names", "map", "skills", "scores", "player_states", "distances_from_target", "distance_source_to_target", "start", "target", "penalties", "timeout_count", "error_count", "winner_list", "total_time_sorted",]
 
 class GolfGame:
     def __init__(self, player_list, args):
@@ -91,6 +91,11 @@ class GolfGame:
 
         self.winner_list = None
         self.total_time_sorted = None
+        self.distances_from_target = None
+        self.map = self.golf.map_filepath
+        self.start = np.array(self.golf.start).astype(float).tolist()
+        self.target = np.array(self.golf.target).astype(float).tolist()
+        self.distance_source_to_target = float(self.golf.start.distance(self.golf.target))
 
         self.processing_turn = False
         self.end_message_printed = False
@@ -153,7 +158,10 @@ class GolfGame:
             if not os.path.isdir(precomp_dir):
                 os.makedirs(precomp_dir)
             player_map_path = slugify(self.golf.map_filepath)
+            start_time = time.time()
             player = player_class(skill=skill, rng=self.rng, logger=self.__get_player_logger(player_name), golf_map=self.golf.golf_map.copy(), start=self.golf.start.copy(), target=self.golf.target.copy(), map_path=player_map_path, precomp_dir=precomp_dir)
+            init_time = time.time() - start_time
+            self.logger.info("Initializing player {} took {:.3f}s".format(player_name, init_time))
             self.players.append(player)
             self.player_names.append(player_name)
             self.skills.append(skill)
@@ -162,7 +170,7 @@ class GolfGame:
             self.curr_locs.append(self.golf.start.copy())
             self.scores.append(0)
             self.penalties.append(0)
-            self.time_taken.append([])
+            self.time_taken.append([init_time])
             self.timeout_count.append(0)
             self.error_count.append(0)
         else:
@@ -198,9 +206,15 @@ class GolfGame:
             total_time = np.zeros(len(self.players))
             for player_idx, player_time_taken in enumerate(self.time_taken):
                 player_time_taken_flatten = np.array(player_time_taken)
+                
                 if player_time_taken_flatten.size == 0:
-                    player_time_taken_flatten = np.zeros(1)
-                self.logger.info("{} took {} steps, total time {:.3f}s, avg step time {:.3f}s, max step time {:.3f}s".format(self.player_names[player_idx], player_time_taken_flatten.size, np.sum(player_time_taken_flatten), np.mean(player_time_taken_flatten), np.amax(player_time_taken_flatten)))
+                    player_time_taken_flatten = np.zeros(2)
+                elif player_time_taken_flatten.size == 1:
+                    player_time_taken_flatten = np.append(player_time_taken_flatten, 0)
+                
+                self.logger.info("{} total time {:.3f}s, init time {:.3f}s, total step time: {:.3f}s".format(self.player_names[player_idx], np.sum(player_time_taken_flatten), player_time_taken_flatten[0], np.sum(player_time_taken_flatten[1:])))
+
+                self.logger.info("{} took {} steps, avg time {:.3f}s, avg step time {:.3f}s, max step time {:.3f}s".format(self.player_names[player_idx], player_time_taken_flatten.size - 1, np.mean(player_time_taken_flatten), np.mean(player_time_taken_flatten[1:]), np.amax(player_time_taken_flatten[1:])))
                 total_time[player_idx] = np.sum(player_time_taken_flatten)
             self.logger.info("Total time taken by all players {:.3f}s".format(np.sum(total_time)))
             total_time_sort_idx = np.argsort(total_time)[::-1]
@@ -226,10 +240,24 @@ class GolfGame:
 
             for player_idx, score in enumerate(self.scores):
                 self.logger.info("{} score: {}".format(self.player_names[player_idx], score))
+
+            for player_idx, player_state in enumerate(self.player_states):
+                self.logger.info("{} final player state: {}".format(self.player_names[player_idx], player_state))
             
-            scores_array = np.array(self.scores, dtype=np.int) 
-            winner_list_idx = np.argwhere(scores_array == np.amin(scores_array))
-            self.winner_list = [self.player_names[i[0]] for i in winner_list_idx if self.player_states[i[0]] == "S"] # winner(s) should have min score and should solve the game
+
+            self.logger.info("Distance from source to target {:.3f}".format(self.distance_source_to_target))
+            self.distances_from_target = [float(self.curr_locs[player_idx].distance(self.golf.target)) if self.player_states[player_idx] != "S" else 0.0 for player_idx in range(len(self.player_names))]
+            for player_idx, distance_from_target in enumerate(self.distances_from_target):
+                self.logger.info("{} final distance from target: {:.3f}".format(self.player_names[player_idx], distance_from_target))
+
+            winner_list_idx = [idx for idx in range(len(self.player_names)) if self.player_states[idx] == "S"] # winner(s) should solve the game
+            if len(winner_list_idx):
+                scores_array = np.array([self.scores[idx] for idx in winner_list_idx], dtype=np.int)
+                modified_winner_list_idx = np.argwhere(scores_array == np.amin(scores_array)).squeeze(axis=1) # winner(s) should have min score too
+                final_winner_list_idx = [winner_list_idx[i] for i in modified_winner_list_idx]
+                self.winner_list = [self.player_names[i] for i in final_winner_list_idx]
+            else:
+                self.winner_list = []
 
             self.logger.info("Winner{}: {}".format("s" if len(self.winner_list) > 1 else "", ", ".join(self.winner_list)))
             if self.use_gui:
@@ -336,39 +364,54 @@ class GolfGame:
         else:
             self.scores[player_idx] += 1
             try:
+                time_limit_already_exceeded = False
                 if self.use_timeout:
-                    signal.signal(signal.SIGALRM, timeout_handler)
-                    signal.alarm(constants.timeout)
-                try:
-                    start_time = time.time()
-                    prev_loc = None
-                    prev_landing_point = None
-                    prev_admissible = None
-                    if len(self.played[player_idx]):
-                        last_step_play_dict = self.played[player_idx][-1]
-                        prev_loc = last_step_play_dict["last_location"].copy()
-                        prev_landing_point = last_step_play_dict["observed_landing_point"].copy()
-                        prev_admissible = last_step_play_dict["admissible"]
-                    returned_action = self.players[player_idx].play(
-                        score=self.scores[player_idx],
-                        golf_map=self.golf.golf_map.copy(),
-                        target=self.golf.target.copy(),
-                        curr_loc=self.curr_locs[player_idx].copy(),
-                        prev_loc=prev_loc,
-                        prev_landing_point=prev_landing_point,
-                        prev_admissible=prev_admissible)
-                    if self.use_timeout:
-                        signal.alarm(0)      # Clear alarm
-                except TimeoutException:
-                    self.logger.error("Timeout {} since {:.3f}s reached.".format(self.player_names[player_idx], constants.timeout))
+                    remaining_time = np.ceil(constants.timeout - np.sum(self.time_taken[player_idx])).astype(int)
+                    if remaining_time > 0:
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(remaining_time)
+                    else:
+                        time_limit_already_exceeded = True
+                if not time_limit_already_exceeded:
+                    try:
+                        start_time = time.time()
+                        prev_loc = None
+                        prev_landing_point = None
+                        prev_admissible = None
+                        if len(self.played[player_idx]):
+                            last_step_play_dict = self.played[player_idx][-1]
+                            prev_loc = last_step_play_dict["last_location"].copy()
+                            prev_landing_point = last_step_play_dict["observed_landing_point"].copy()
+                            prev_admissible = last_step_play_dict["admissible"]
+                        returned_action = self.players[player_idx].play(
+                            score=self.scores[player_idx],
+                            golf_map=self.golf.golf_map.copy(),
+                            target=self.golf.target.copy(),
+                            curr_loc=self.curr_locs[player_idx].copy(),
+                            prev_loc=prev_loc,
+                            prev_landing_point=prev_landing_point,
+                            prev_admissible=prev_admissible)
+                        if self.use_timeout:
+                            signal.alarm(0)      # Clear alarm
+                    except TimeoutException:
+                        self.logger.error("Timeout {} since {:.3f}s reached.".format(self.player_names[player_idx], constants.timeout))
+                        returned_action = None
+                        self.timeout_count[player_idx] += 1
+                        self.scores[player_idx] = constants.max_tries
+                    
+                    step_time = time.time() - start_time
+                    self.time_taken[player_idx].append(step_time)
+                
+                else:                    
+                    self.logger.error("Skipping {} since time limit of {:.3f}s already exceeded and already ran for {:.3f}s.".format(self.player_names[player_idx], constants.timeout, np.sum(self.time_taken[player_idx])))
                     returned_action = None
                     self.timeout_count[player_idx] += 1
-                step_time = time.time() - start_time
-                self.time_taken[player_idx].append(step_time)
+                    self.scores[player_idx] = constants.max_tries
             except Exception as e:
                 self.logger.error(e, exc_info=True)
                 returned_action = None
                 self.error_count[player_idx] += 1
+                self.scores[player_idx] = constants.max_tries
 
             is_valid_action = self.__check_action(returned_action)
             if is_valid_action:
