@@ -4,7 +4,6 @@ import numpy as np
 import sympy
 from shapely.geometry import Polygon, Point, LineString
 from shapely.validation import make_valid
-import skgeom as sg
 from skgeom.draw import draw
 import skgeom as sg
 import matplotlib.pyplot as plt
@@ -14,7 +13,7 @@ from typing import Tuple
 from collections import defaultdict
 import time
 
-DEBUG_MSG = True  # enable print messages
+DEBUG_MSG = False  # enable print messages
 
 
 class Player:
@@ -159,7 +158,9 @@ class Player:
         since = time.time()
 
         if len(list(self.shapely_poly.exterior.coords)) < 20:
-            skill_dist_range = 150
+            skill_dist_range = 50
+            if DEBUG_MSG:
+                print("construct_land_bridges :: using constant skill_dist_range of", skill_dist_range)
         else:
             skill_dist_range = 200 + self.skill
 
@@ -430,8 +431,8 @@ class Player:
                                         hyp = hyp / 2
         #if (self.skill < 80 and len(list(self.shapely_poly.exterior.coords)) > 20):
         total_nodes = len(new_nodes) + len(self.graph.keys())
-        if (len(new_nodes) > 2 * len(self.graph.keys()) and total_nodes > 500):
-            mod = round(len(new_nodes)/(500 - len(self.graph.keys())))
+        if (len(new_nodes) > 2 * len(self.graph.keys()) and total_nodes > 300):
+            mod = round(len(new_nodes)/(300 - len(self.graph.keys())))
             new_nodes = new_nodes[::mod]
         for node in new_nodes:
             self.graph[node] = []
@@ -602,6 +603,9 @@ class Player:
         #print("Calculated")
         #print(final_area/cone_area)
         #return final_area/cone_area
+        # TODO
+        if cone_area == 0:
+            return 1
         return intersect/cone_area
     
     def BFS(self, target, tolerance):
