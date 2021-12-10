@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 import sympy
 from shapely.geometry import Polygon, Point, LineString
-import skgeom as sg
+from shapely.validation import make_valid
 from skgeom.draw import draw
 import skgeom as sg
 import matplotlib.pyplot as plt
@@ -12,8 +12,6 @@ import logging
 from typing import Tuple
 from collections import defaultdict
 import time
-
-from sympy.geometry.point import Point2D
 
 DEBUG_MSG = False  # enable print messages
 
@@ -32,34 +30,68 @@ class Player:
             map_path (str): File path to map
             precomp_dir (str): Directory path to store/load precomputation
         """
-        # # if depends on skill
-        # precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
-        # # if doesn't depend on skill
-        # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
         
-        # # precompute check
-        # if os.path.isfile(precomp_path):
-        #     # Getting back the objects:
-        #     with open(precomp_path, "rb") as f:
-        #         self.obj0, self.obj1, self.obj2 = pickle.load(f)
-        # else:
-        #     # Compute objects to store
-        #     self.obj0, self.obj1, self.obj2 = _
 
-        #     # Dump the objects
-        #     with open(precomp_path, 'wb') as f:
-        #         pickle.dump([self.obj0, self.obj1, self.obj2], f)
         self.skill = skill
         self.rng = rng
         self.logger = logger
 
-        self.shapely_poly = None
-        self.shapely_edges = None
-        self.scikit_poly = None
-        self.graph = {}  # self.graph[node_i] contains a list of edges where each edge_j = (node_j, weight, f_count)
-        # self.all_nodes_center = {}
+
+        
         self.needs_edge_init = True
-        self.critical_pts = []
+        # if depends on skill
+        precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
+        # # if doesn't depend on skill
+        # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
+        
+        # precompute check
+        if os.path.isfile(precomp_path):
+            # Getting back the objects:
+            with open(precomp_path, "rb") as f:
+                #self.obj0, self.obj1, self.obj2 = pickle.load(f)
+                self.shapely_poly, self.shapely_edges, self.graph, self.critical_pts = pickle.load(f)
+        else:
+            # Compute objects to store
+            #self.obj0, self.obj1, self.obj2 = _
+            
+            self.graph = {}  # self.graph[node_i] contains a list of edges where each edge_j = (node_j, weight, f_count)
+            # self.all_nodes_center = {}
+            self.critical_pts = []
+            self.shapely_poly = Polygon([(p.x, p.y) for p in golf_map.vertices])
+            self.shapely_edges = LineString(list(self.shapely_poly.exterior.coords))
+
+            self.scikit_poly = sg.Polygon([(p.x, p.y) for p in golf_map.vertices])
+            skel = sg.skeleton.create_interior_straight_skeleton(self.scikit_poly)
+            self.draw_skeleton(self.scikit_poly, skel)
+            self.construct_nodes(target)
+            if DEBUG_MSG:
+                draw(self.scikit_poly)
+                for v in self.graph.keys():
+                    plt.plot(v[0], v[1], 'bo')
+                plt.savefig('skel.png')
+
+            self.construct_land_bridges(start)
+            if DEBUG_MSG:
+                draw(self.scikit_poly)
+                for v in self.graph.keys():
+                    plt.plot(v[0], v[1], 'bo')
+                plt.savefig('land.png')
+
+            self.construct_more_nodes(start)
+            if DEBUG_MSG:
+                draw(self.scikit_poly)
+                for v in self.graph.keys():
+                    plt.plot(v[0], v[1], 'bo')
+                plt.savefig('more.png')
+                
+            if self.needs_edge_init:
+                self.construct_edges(start, target, only_construct_from_source=False)
+                self.needs_edge_init = False
+
+            # Dump the objects
+            with open(precomp_path, 'wb') as f:
+                pickle.dump([self.shapely_poly, self.shapely_edges, self.graph, self.critical_pts], f)
+        
 
     def draw_skeleton(self, polygon, skeleton, show_time=False):
         draw(polygon)
@@ -125,9 +157,14 @@ class Player:
     def construct_land_bridges(self, curr_loc):
         since = time.time()
 
-        skill_dist_range = 200 + self.skill
+        if len(list(self.shapely_poly.exterior.coords)) < 20:
+            skill_dist_range = 50
+            if DEBUG_MSG:
+                print("construct_land_bridges :: using constant skill_dist_range of", skill_dist_range)
+        else:
+            skill_dist_range = 200 + self.skill
 
-        skill_stops = 1
+        skill_stops = 2
 
         new_nodes = []
         for from_node in self.graph.keys():
@@ -163,7 +200,7 @@ class Player:
                             else:
                                 theta = math.atan(d_y / d_x)
                             
-                            for n in range(num_stops + skill_stops - 1):
+                            for n in range(num_stops):
                                 offset_y = (n + 1) * len_stop * math.sin(theta)
                                 offset_x = (n + 1) * len_stop * math.cos(theta)
 
@@ -201,7 +238,7 @@ class Player:
                             else:
                                 theta = math.atan(d_y / d_x)
 
-                            for n in range(num_stops + skill_stops - 1):
+                            for n in range(num_stops):
                                 offset_y = (n + 1) * len_stop * math.sin(theta)
                                 offset_x = (n + 1) * len_stop * math.cos(theta)
 
@@ -273,10 +310,10 @@ class Player:
 
                                     theta = math.atan(d_y / d_x)
 
-                                    hyp = distance*0.3
+                                    hyp = distance*0.2
                                     bridge_0_count = 0
                                     bridge_1_count = 0
-                                    while (not bridge_0_count or not bridge_1_count):
+                                    while (hyp > distance*0.01):
                                         
                                         offset_y = hyp * math.sin(theta)
                                         offset_x = hyp * math.cos(theta)
@@ -312,7 +349,7 @@ class Player:
                                                     stop_point = (bridge_1[0] + offset_x, bridge_1[1] + offset_y)
                                                     if self.shapely_poly.contains(Point(stop_point[0], stop_point[1])):
                                                         new_nodes.append(stop_point)
-                                        hyp = hyp / 3
+                                        hyp = hyp / 2
                                         
             else:
                 for to_node in self.graph.keys():
@@ -352,10 +389,10 @@ class Player:
 
                                     theta = math.atan(d_y / d_x)
 
-                                    hyp = distance*0.3
+                                    hyp = distance*0.2
                                     bridge_0_count = 0
                                     bridge_1_count = 0
-                                    while (not bridge_0_count or not bridge_1_count):
+                                    while (hyp > distance*0.01):
                                         offset_y = hyp * math.sin(theta)
                                         offset_x = hyp * math.cos(theta)
 
@@ -391,9 +428,10 @@ class Player:
                                                     stop_point = (bridge_1[0] + offset_x, bridge_1[1] + offset_y)
                                                     if self.shapely_poly.contains(Point(stop_point[0], stop_point[1])):
                                                         new_nodes.append(stop_point)
-                                        hyp = hyp / 3
+                                        hyp = hyp / 2
         #if (self.skill < 80 and len(list(self.shapely_poly.exterior.coords)) > 20):
-        if (len(new_nodes) > 300):
+        total_nodes = len(new_nodes) + len(self.graph.keys())
+        if (len(new_nodes) > 2 * len(self.graph.keys()) and total_nodes > 300):
             mod = round(len(new_nodes)/(300 - len(self.graph.keys())))
             new_nodes = new_nodes[::mod]
         for node in new_nodes:
@@ -447,7 +485,7 @@ class Player:
                                 risk = self.calculate_risk((curr_loc[0], curr_loc[1]), to_node)
                                 self.graph[from_node].append([to_node, risk])
 
-                    elif self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node) <= skill_dist_range + epsilon:
+                    elif self._euc_dist((int(curr_loc.x), int(curr_loc.y)), to_node) <= skill_dist_range:
                         risk = self.calculate_risk((curr_loc[0], curr_loc[1]), to_node)
                         self.graph[from_node].append([to_node, risk])
 
@@ -475,7 +513,7 @@ class Player:
                             else:
                                 risk = self.calculate_risk(from_node, to_node)
                                 self.graph[from_node].append([to_node, risk])
-                    # if the distance between the two Node centers is reachable, add to from_node's adjacency list
+                    
                     elif self._euc_dist(from_node, to_node) <= skill_dist_range:
                         risk = self.calculate_risk(from_node, to_node)
                         self.graph[from_node].append([to_node, risk])
@@ -549,6 +587,7 @@ class Player:
         #print(len(points))
         #cone = sg.Polygon(points)
         cone = Polygon(points)
+        cone = make_valid(cone)
         #cone_area = cone.area()
         cone_area = cone.area
 
@@ -564,6 +603,9 @@ class Player:
         #print("Calculated")
         #print(final_area/cone_area)
         #return final_area/cone_area
+        # TODO
+        if cone_area == 0:
+            return 1
         return intersect/cone_area
     
     def BFS(self, target, tolerance):
@@ -603,6 +645,7 @@ class Player:
                 queue.append(new_path)
         if len(final_path) < 2:
             if DEBUG_MSG:
+                print("sanity check: ", str(len(final_path)))
                 print("time for bfs:", time.time() - since)
             return "default"
 
@@ -644,39 +687,9 @@ class Player:
             - more specific map with .05m-sized nodes 20m around from current point
          """
 
-        if score == 1:  # turn 1
-            self.shapely_poly = Polygon([(p.x, p.y) for p in golf_map.vertices])
-            self.shapely_edges = LineString(list(self.shapely_poly.exterior.coords))
-            self.scikit_poly = sg.Polygon([(p.x, p.y) for p in golf_map.vertices])
-            skel = sg.skeleton.create_interior_straight_skeleton(self.scikit_poly)
-            self.draw_skeleton(self.scikit_poly, skel)
-            self.construct_nodes(target)
-            if DEBUG_MSG:
-                draw(self.scikit_poly)
-                for v in self.graph.keys():
-                    plt.plot(v[0], v[1], 'bo')
-                plt.savefig('skel.png')
-
-            self.construct_land_bridges(curr_loc)
-            if DEBUG_MSG:
-                draw(self.scikit_poly)
-                for v in self.graph.keys():
-                    plt.plot(v[0], v[1], 'bo')
-                plt.savefig('land.png')
-
-            self.construct_more_nodes(curr_loc)
-            if DEBUG_MSG:
-                draw(self.scikit_poly)
-                for v in self.graph.keys():
-                    plt.plot(v[0], v[1], 'bo')
-                plt.savefig('more.png')
+        #if score == 1:  # turn 1
             
-
-            if self.needs_edge_init:
-                self.construct_edges(curr_loc, target, only_construct_from_source=False)
-                self.needs_edge_init = False
-
-        else:
+        if score != 1:
             self.construct_edges(curr_loc, target,
                                  only_construct_from_source=True)  # only construct outgoing edges of curr_loc
         max_score = 0
