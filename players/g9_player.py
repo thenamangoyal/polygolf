@@ -42,8 +42,14 @@ class Player:
         self.rows = None
         self.cols = None
         self.max_distance = 200 + skill -.001
-        self.distances = [self.max_distance*0.1, self.max_distance*0.2,self.max_distance*0.3, self.max_distance*0.4,self.max_distance*0.5, self.max_distance*0.6,self.max_distance*0.7, self.max_distance*0.8,self.max_distance*0.9, self.max_distance]
-        self.angles = [0, np.pi / 6, np.pi / 4, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 3 * np.pi / 4, 5 * np.pi / 6, np.pi, 7 * np.pi / 6, 5 * np.pi / 4, 4 * np.pi / 3, 3 * np.pi / 2, 5 * np.pi / 3, 7 * np.pi / 4, 11 * np.pi / 6]
+        self.distances = [self.max_distance*0.3, self.max_distance*0.4,self.max_distance*0.5, self.max_distance*0.6,self.max_distance*0.7, self.max_distance*0.8,self.max_distance*0.9, self.max_distance]
+        #self.angles = [0, np.pi / 6, np.pi / 4, np.pi / 3, np.pi / 2, 2 * np.pi / 3, 3 * np.pi / 4, 5 * np.pi / 6, np.pi, 7 * np.pi / 6, 5 * np.pi / 4, 4 * np.pi / 3, 3 * np.pi / 2, 5 * np.pi / 3, 7 * np.pi / 4, 11 * np.pi / 6]
+        self.angles = []
+        i = 0
+        num_angles = 20
+        while(i < num_angles):
+            self.angles.append(i * 2 * np.pi / num_angles)
+            i += 1
 
         minx, miny, maxx, maxy = self.quick_map.bounds
         self.minx = minx
@@ -78,7 +84,7 @@ class Player:
     	    Returns:
     	        the potential landing point as a sympy.Point2D object
     	"""
-        return shapely.geometry.Point(curr_loc.x + distance * np.cos(angle), curr_loc.y + distance * np.sin(angle))
+        return shapely.geometry.Point(curr_loc.x + distance * np.cos(float(angle)), curr_loc.y + distance * np.sin(float(angle)))
 
     
     def get_center(self, r: int, c: int):
@@ -264,11 +270,14 @@ class Player:
 
 
     # Generate potential branches for the A* searching algorithm
-    def generate_branches(self, points):
+    def generate_branches(self, points, displacement_angle):
         pt = points[-1]
         li = []
         for distance in self.distances:
             for angle in self.angles:
+                angle = angle + displacement_angle
+                if(angle > 2 * np.pi):
+                    angle = angle - 2 * np.pi
                 new_point = self.get_landing_point(pt, distance, angle)
                 valid = True
                 for i in range(len(points) - 1):
@@ -280,8 +289,7 @@ class Player:
 
         return li
 
-    def a_star(self, start, target):
-        # print("starting a star")
+    def a_star(self, start, target, curr_loc, target_loc):
         count = 0
         secondCount = 0
         # print("starting a star")
@@ -293,7 +301,7 @@ class Player:
         path = [start]
         #pq.put([E, path, 0])
         heap = [(E, secondCount, 0, path)]
-
+        displacement_angle = sympy.atan2(target_loc.y - curr_loc.y, target_loc.x - curr_loc.x)
         while heap:
             count += 1
             h, _, strokes, path = heappop(heap)
@@ -306,7 +314,7 @@ class Player:
                 return path
 
 
-            possibleShots = self.generate_branches(path)
+            possibleShots = self.generate_branches(path, displacement_angle)
 
 
             for shot in possibleShots:
@@ -324,6 +332,35 @@ class Player:
 
 
 
+    def approach(self, s, t):
+        d = s.distance(t)
+        r = d/1.1
+        angle = float(sympy.atan2(t.y - s.y, t.x - s.x))
+
+        pt = self.get_landing_point(s, r, angle)
+
+
+        bestProbability = self.expected_strokes(s, pt)
+        bestr = r
+        bestangle = angle
+
+        if bestProbability < 1.1: #if shooting straight at the hole will go in water less than 1/10th of the time, just shoot
+            return r, angle
+
+
+        for i in range(-20,21,2):
+            for j in range(-20,21,2): #will check 100 points in 2 meter increments around aiming directly at hole
+                testPoint = shapely.geometry.Point(pt.x + i, pt.y + j)
+                testr, testangle = self.get_polar(s, testPoint)
+                if(testr > self.max_distance): #break if point too far away
+                    break
+                strokes = self.expected_strokes(s, testPoint)
+                if strokes < bestProbability:
+                    bestProbability = strokes
+                    r = testr
+                    angle = testangle
+
+        return r, angle
 
 
 
@@ -358,12 +395,12 @@ class Player:
             if s.distance(t) < 20:
                 distance = s.distance(t)
             else:
-                distance = s.distance(t) / 1.1
+                distance, angle = self.approach(s,t)
             return (distance, angle)
         else:
             s = shapely.geometry.Point(curr_loc.x, curr_loc.y)
             t = shapely.geometry.Point(target.x, target.y)
-            path = self.a_star(s, t)
+            path = self.a_star(s, t, curr_loc, target)
 
             e = path[1]
             angle = sympy.atan2(e.y - curr_loc.y, e.x - curr_loc.x)
@@ -382,5 +419,7 @@ class Player:
         distance = min(self.max_distance, s.distance(self.path[closestI + 1]))
         if distance > self.max_distance:
             distance = int(self.max_distance)
+
+        distance = distance / 1.1
 
         return (distance, angle)

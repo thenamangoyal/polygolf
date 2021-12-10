@@ -1,6 +1,6 @@
 import os
 
-timeout = 1
+timeout = 1*60 # 1 min aggregate time limit
 
 default_map = os.path.join("maps", "default", "simple.json")
 possible_players = ["d"] + list(map(str, range(1, 10)))

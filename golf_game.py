@@ -250,9 +250,14 @@ class GolfGame:
             for player_idx, distance_from_target in enumerate(self.distances_from_target):
                 self.logger.info("{} final distance from target: {:.3f}".format(self.player_names[player_idx], distance_from_target))
 
-            scores_array = np.array(self.scores, dtype=np.int) 
-            winner_list_idx = np.argwhere(scores_array == np.amin(scores_array))
-            self.winner_list = [self.player_names[i[0]] for i in winner_list_idx if self.player_states[i[0]] == "S"] # winner(s) should have min score and should solve the game
+            winner_list_idx = [idx for idx in range(len(self.player_names)) if self.player_states[idx] == "S"] # winner(s) should solve the game
+            if len(winner_list_idx):
+                scores_array = np.array([self.scores[idx] for idx in winner_list_idx], dtype=np.int)
+                modified_winner_list_idx = np.argwhere(scores_array == np.amin(scores_array)).squeeze(axis=1) # winner(s) should have min score too
+                final_winner_list_idx = [winner_list_idx[i] for i in modified_winner_list_idx]
+                self.winner_list = [self.player_names[i] for i in final_winner_list_idx]
+            else:
+                self.winner_list = []
 
             self.logger.info("Winner{}: {}".format("s" if len(self.winner_list) > 1 else "", ", ".join(self.winner_list)))
             if self.use_gui:
@@ -359,39 +364,54 @@ class GolfGame:
         else:
             self.scores[player_idx] += 1
             try:
+                time_limit_already_exceeded = False
                 if self.use_timeout:
-                    signal.signal(signal.SIGALRM, timeout_handler)
-                    signal.alarm(constants.timeout)
-                try:
-                    start_time = time.time()
-                    prev_loc = None
-                    prev_landing_point = None
-                    prev_admissible = None
-                    if len(self.played[player_idx]):
-                        last_step_play_dict = self.played[player_idx][-1]
-                        prev_loc = last_step_play_dict["last_location"].copy()
-                        prev_landing_point = last_step_play_dict["observed_landing_point"].copy()
-                        prev_admissible = last_step_play_dict["admissible"]
-                    returned_action = self.players[player_idx].play(
-                        score=self.scores[player_idx],
-                        golf_map=self.golf.golf_map.copy(),
-                        target=self.golf.target.copy(),
-                        curr_loc=self.curr_locs[player_idx].copy(),
-                        prev_loc=prev_loc,
-                        prev_landing_point=prev_landing_point,
-                        prev_admissible=prev_admissible)
-                    if self.use_timeout:
-                        signal.alarm(0)      # Clear alarm
-                except TimeoutException:
-                    self.logger.error("Timeout {} since {:.3f}s reached.".format(self.player_names[player_idx], constants.timeout))
+                    remaining_time = np.ceil(constants.timeout - np.sum(self.time_taken[player_idx])).astype(int)
+                    if remaining_time > 0:
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(remaining_time)
+                    else:
+                        time_limit_already_exceeded = True
+                if not time_limit_already_exceeded:
+                    try:
+                        start_time = time.time()
+                        prev_loc = None
+                        prev_landing_point = None
+                        prev_admissible = None
+                        if len(self.played[player_idx]):
+                            last_step_play_dict = self.played[player_idx][-1]
+                            prev_loc = last_step_play_dict["last_location"].copy()
+                            prev_landing_point = last_step_play_dict["observed_landing_point"].copy()
+                            prev_admissible = last_step_play_dict["admissible"]
+                        returned_action = self.players[player_idx].play(
+                            score=self.scores[player_idx],
+                            golf_map=self.golf.golf_map.copy(),
+                            target=self.golf.target.copy(),
+                            curr_loc=self.curr_locs[player_idx].copy(),
+                            prev_loc=prev_loc,
+                            prev_landing_point=prev_landing_point,
+                            prev_admissible=prev_admissible)
+                        if self.use_timeout:
+                            signal.alarm(0)      # Clear alarm
+                    except TimeoutException:
+                        self.logger.error("Timeout {} since {:.3f}s reached.".format(self.player_names[player_idx], constants.timeout))
+                        returned_action = None
+                        self.timeout_count[player_idx] += 1
+                        self.scores[player_idx] = constants.max_tries
+                    
+                    step_time = time.time() - start_time
+                    self.time_taken[player_idx].append(step_time)
+                
+                else:                    
+                    self.logger.error("Skipping {} since time limit of {:.3f}s already exceeded and already ran for {:.3f}s.".format(self.player_names[player_idx], constants.timeout, np.sum(self.time_taken[player_idx])))
                     returned_action = None
                     self.timeout_count[player_idx] += 1
-                step_time = time.time() - start_time
-                self.time_taken[player_idx].append(step_time)
+                    self.scores[player_idx] = constants.max_tries
             except Exception as e:
                 self.logger.error(e, exc_info=True)
                 returned_action = None
                 self.error_count[player_idx] += 1
+                self.scores[player_idx] = constants.max_tries
 
             is_valid_action = self.__check_action(returned_action)
             if is_valid_action:
