@@ -8,3 +8,4 @@ matplotlib
 shapely
 numba
 scikit-geometry
+dijkstar

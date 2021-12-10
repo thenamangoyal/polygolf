@@ -12,13 +12,36 @@ import heapq
 from dijkstar import Graph, find_path
 
 class Player:
-    def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger) -> None:
+    def __init__(self, skill: int, rng: np.random.Generator, logger: logging.Logger, golf_map: sympy.Polygon, start: sympy.geometry.Point2D, target: sympy.geometry.Point2D, map_path: str, precomp_dir: str) -> None:
         """Initialise the player with given skill.
+
         Args:
             skill (int): skill of your player
             rng (np.random.Generator): numpy random number generator, use this for same player behvior across run
             logger (logging.Logger): logger use this like logger.info("message")
+            golf_map (sympy.Polygon): Golf Map polygon
+            start (sympy.geometry.Point2D): Start location
+            target (sympy.geometry.Point2D): Target location
+            map_path (str): File path to map
+            precomp_dir (str): Directory path to store/load precomputation
         """
+        # # if depends on skill
+        # precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
+        # # if doesn't depend on skill
+        # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
+        
+        # # precompute check
+        # if os.path.isfile(precomp_path):
+        #     # Getting back the objects:
+        #     with open(precomp_path, "rb") as f:
+        #         self.obj0, self.obj1, self.obj2 = pickle.load(f)
+        # else:
+        #     # Compute objects to store
+        #     self.obj0, self.obj1, self.obj2 = _
+
+        #     # Dump the objects
+        #     with open(precomp_path, 'wb') as f:
+        #         pickle.dump([self.obj0, self.obj1, self.obj2], f)
         self.skill = skill
         self.rng = rng
         self.logger = logger
@@ -34,7 +57,7 @@ class Player:
 
         self.shapely_polygon = None
 
-        self.n_distances = 20
+        self.n_distances = 25
         self.n_angles = 45
 
         self.angle_offset = pi
@@ -83,7 +106,7 @@ class Player:
         roll_factor = 1.1
         if required_dist < 20:
             roll_factor  = 1.0
-        max_distance = min(200+self.skill, required_dist/roll_factor)
+        max_distance = min(200+self.skill, required_dist/roll_factor * 1.50)
         target_angle = atan2(target.y - curr_loc.y, target.x - curr_loc.x)
 
         best_shot = (0,0)
@@ -227,7 +250,6 @@ class Player:
         '''
 
         nodes = [(float(p.x),float(p.y)) for p in golf_map.vertices]
-
         a = np.empty(2)
         b = np.empty(2)
 
@@ -282,6 +304,8 @@ class Player:
         for i in range(len(self.nodes)):
             for j in range(i+1,len(self.nodes)):
                 d = distance(self.nodes[i],self.nodes[j])
+                if d <= 20 and not self.line_segment_in_polygon(self.nodes[i],self.nodes[j], n_points_on_seg=5):
+                    continue
                 graph.add_edge(self.nodes[i], self.nodes[j], d)
                 graph.add_edge(self.nodes[j], self.nodes[i], d)
 
