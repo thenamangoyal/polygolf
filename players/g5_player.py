@@ -65,24 +65,9 @@ def score_paths(start_point, target, paths_to_search, polygon, skill, rng,if_pri
     if len(paths_to_search) == 0:
         return None
 
-    def norm_0_1(arr):
-        if arr.min() == arr.max():
-            return np.ones(arr.shape[0])
-        return (arr - arr.min()) / (arr.max() - arr.min())
-
     start_to_hole_distance = start_point.distance(target)
     all_h = np.array([path.heuristic(start_to_hole_distance, skill) for path in paths_to_search])
     all_c = np.array([path.confidence(polygon, skill, rng) for path in paths_to_search])
-    # all_c = np.where(all_c > 0.8, 0.8, all_c)
-    # all_h = norm_0_1(all_h)
-    # all_c = norm_0_1(all_c)
-
-    if if_print:
-        l = []
-        for i in range(len(paths_to_search)):
-            l.append((paths_to_search[i].path[0].point.x, paths_to_search[i].path[0].point.y, all_h[i], all_c[i]))
-        l.sort(key = lambda x: x[2] + x[3])
-        print("lps: ", l)
 
     best_i = np.argmin(all_h + all_c)
     return paths_to_search[best_i]
@@ -139,21 +124,6 @@ def generate_points(curr_loc, target, polygon, skill, increment=25):
     return points
 
 
-def search_landing_points(points, polygon, skill, rng):
-    largest_point = None
-    largest_point_score = -1 * float('inf')
-    for point in points:
-        start = time()
-        score = point.score(polygon, skill, rng)
-        end = time()
-        # print("time: ", end-start)
-        if score > largest_point_score:
-            largest_point = point
-            largest_point_score = score
-
-    return largest_point
-
-
 class LandingPoint(object):
     def __init__(self, point, distance_from_origin, angle_from_origin, start_point, hole_point):
         # distance_from_origin is the distance from our curr_location to the landing point
@@ -185,6 +155,7 @@ class LandingPoint(object):
                     successful += 1
             frac = (successful / self.trials)
             frac = frac if frac != 0 else 0.05
+            self.successful_trials = successful
             self.shot_confidence = 1 / frac
             return self.shot_confidence
 
@@ -196,10 +167,6 @@ class LandingPoint(object):
         # self.h = (200 + skill) / distance_to_hole
         self.h = predict_num_shots(distance_to_hole, skill)
         return self.h
-
-    def score(self, polygon, skill, rng, initial_distance):
-        # uses confidence and heuristic
-        return self.heuristic(initial_distance, skill) + (self.confidence(polygon, skill, rng))
 
 
 class MultipleLandingPoints:
@@ -278,14 +245,6 @@ class Player:
                 path.add_point(self.shapely_polygon, self.skill, self.rng)
             if path.distance_to_hole()> 20:
                 path.add_point(self.shapely_polygon, self.skill, self.rng)
-        # l = []
-        #
-        # for path in paths:
-        #     l.append((path.path[0].point.x, path.path[0].point.y, path.score(self.shapely_polygon, self.skill, self.rng)))
-        # l.sort(key=lambda x: x[2])
-        # print("Start", curr_loc.x, curr_loc.y)
-        # print("end", target.x, target.y)
-        # print(l)
-        # largest_point = search_landing_points(paths, self.shapely_polygon, self.skill, self.rng)
+
         largest_point = score_paths(curr_loc, target, paths, self.shapely_polygon, self.skill, self.rng, if_print=True)
         return largest_point.path[0].distance_from_origin, largest_point.path[0].angle_from_origin
