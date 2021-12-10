@@ -23,22 +23,22 @@ class Player:
             precomp_dir (str): Directory path to store/load precomputation
         """
         # # if depends on skill
-        # precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
+        precomp_path = os.path.join(precomp_dir, "{}_skill-{}.pkl".format(map_path, skill))
         # # if doesn't depend on skill
         # precomp_path = os.path.join(precomp_dir, "{}.pkl".format(map_path))
         
-        # # precompute check
-        # if os.path.isfile(precomp_path):
-        #     # Getting back the objects:
-        #     with open(precomp_path, "rb") as f:
-        #         self.obj0, self.obj1, self.obj2 = pickle.load(f)
-        # else:
-        #     # Compute objects to store
-        #     self.obj0, self.obj1, self.obj2 = _
-
-        #     # Dump the objects
-        #     with open(precomp_path, 'wb') as f:
-        #         pickle.dump([self.obj0, self.obj1, self.obj2], f)
+        # precompute check
+        if os.path.isfile(precomp_path):
+             # Getting back the objects:
+             with open(precomp_path, "rb") as f:
+                 self.grid, self.golf_map, self.valueMap, self.graph = pickle.load(f)
+        else:
+            if not self.grid:
+                self.create_grid(golf_map)
+                self.value_estimation(Point(target.x, target.y))
+             # Compute objects to store
+             with open(precomp_path, 'wb') as f:
+                 pickle.dump([self.grid, self.golf_map, self.valueMap, self.graph], f)
         self.skill = skill
         self.rng = rng
         self.logger = logger
@@ -202,10 +202,7 @@ class Player:
         Returns:
             Tuple[float, float]: Return a tuple of distance and angle in radians to play the shot
         """
-        if not self.grid:
-            self.create_grid(golf_map)
-            self.value_estimation(Point(target.x, target.y))
-        curr_loc_point = Point(curr_loc.x, curr_loc.y)
+       curr_loc_point = Point(curr_loc.x, curr_loc.y)
         minDistance, minPoint = float('inf'), None
         for point in self.graph.keys():
             pd = Point(point).distance(curr_loc_point) 
