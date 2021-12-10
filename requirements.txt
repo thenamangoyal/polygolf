@@ -10,3 +10,4 @@ numba
 scikit-geometry
 typing
 dijkstar
+skgeom
