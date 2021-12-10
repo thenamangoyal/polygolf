@@ -51,7 +51,6 @@ class Player:
             self.angles.append(i * 2 * np.pi / num_angles)
             i += 1
 
-        print(self.angles)
         minx, miny, maxx, maxy = self.quick_map.bounds
         self.minx = minx
         self.miny = miny
@@ -221,7 +220,6 @@ class Player:
 
     
     def precompute(self):
-        print("starting precomputation")
         # minx, miny, maxx, maxy = self.quick_map.bounds
         # self.minx = minx
         # self.miny = miny
@@ -292,7 +290,6 @@ class Player:
         return li
 
     def a_star(self, start, target, curr_loc, target_loc):
-        print("starting a star")
         count = 0
         secondCount = 0
         # print("starting a star")
@@ -339,9 +336,6 @@ class Player:
         d = s.distance(t)
         r = d/1.1
         angle = float(sympy.atan2(t.y - s.y, t.x - s.x))
-        print("approach")
-        print(r)
-        print(angle)
 
         pt = self.get_landing_point(s, r, angle)
 
