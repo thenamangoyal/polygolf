@@ -162,6 +162,10 @@ class Player:
         if (cost>3 and confidence_level==3):
             denumerator2=2.5
             denumerator1 = 2.5
+        if (self.skill == 10 ):
+            denumerator2 == 2 if (confidence_level ==1) else 2.5
+            denumerator1 = 2 if (confidence_level <3 ) else 2.5
+
         angle_2std = 1/(denumerator1*self.skill)
         distance_2std = 2*d/(denumerator2*self.skill)
         min_distance = d-distance_2std
@@ -174,24 +178,6 @@ class Player:
         L2 = LineString([Point(begin_line2), Point(end_line2)])
         check1 = L1.within(self.map_shapely)
         check2 = L2.within(self.map_shapely)
-        # xs=[]
-        # ys=[]
-        # step = 2*angle_2std/4
-        # angles = [angle - angle_2std +step , angle - angle_2std +2*step ,angle - angle_2std +3*step ]
-        # p = []
-        # for a in angles:
-        #     x = start_point.x + max_distance * math.cos(a)
-        #     y = start_point.y + max_distance * math.sin(a)
-        #     p.append(Point2D(x,y))
-
-        # for a in reversed(angles):
-        #     x = start_point.x + min_distance * math.cos(a)
-        #     y = start_point.y + min_distance * math.sin(a)
-        #     p.append(Point2D(x,y))
-        # contains =0
-        # for i in p:
-        #     if(self.point_inside_polygon(self.map.vertices, i)):
-        #         contains +=1
         if (check1 & check2):
             return 1
         else:
@@ -224,7 +210,6 @@ class Player:
         current_point = np.array(point).astype(float)
         nei , dis = self.numpy_adjacent_and_dist(current_point)
         if self.is_neighbour(point, self.target, conf,cost):
-            print('target close!')
             yield (self.target)
         for i in nei:
             if (tuple(i) not in closedSet and tuple(i) not in openSet):
@@ -233,19 +218,6 @@ class Player:
                 angle = sympy.atan2(n[1] - current_point[1], n[0] - current_point[0])
                 if (self.is_safe(required_dist,angle,Point2D(point), conf,cost)):
                     yield tuple(i)
-
-        # neighbours = []
-        # if self.is_neighbour(point, self.target):
-        #     print('target close!')
-        #     yield (self.target)
-        # for center in self.centers:
-        #     if center.equals(Point2D(point)):
-        #         continue
-        #     if tuple(center) in closedSet:
-        #         continue
-        #     if self.is_neighbour(point, center):
-        #         neighbours.append( tuple(center))
-        #         yield tuple(center)
 
   
     def aStar( self, current, end , conf =1):
@@ -263,7 +235,7 @@ class Player:
         while len(openHeap)>0:
             next_pointC = heapq.heappop(openHeap)
             next_point = next_pointC.point
-            print(next_point)
+            #print(next_point)
             #reached the goal
             if np.linalg.norm(np.array(self.target).astype(float) - np.array(next_point).astype(float)) <= 5.4 / 100.0:
                 while next_pointC.previous.point != cur_loc:
@@ -354,13 +326,12 @@ class Player:
                     roll_factor  = 1.0
                 distance = sympy.Min(200+self.skill, required_dist/roll_factor)
                 angle = sympy.atan2(target.y - curr_loc.y, target.x - curr_loc.x)
-                return (required_dist, angle)
+                return (distance , angle)
             required_dist = curr_loc.distance(next_point)
             angle = sympy.atan2(next_point[1] - curr_loc.y, next_point[0] - curr_loc.x)
             if (next_point[1] == self.target[1] and next_point[0] == self.target[0]):
                 if(required_dist>20):
                     required_dist = 0.9*required_dist
-
             self.turns = self.turns +1  
             print(next_point)
             return (required_dist, angle)

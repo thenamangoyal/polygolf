@@ -8,3 +8,7 @@ matplotlib
 shapely
 numba
 scikit-geometry
+typing 
+shapely
+scipy
+
