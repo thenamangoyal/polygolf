@@ -48,16 +48,18 @@ def convert_sympy_shapely(point):
 
 def predict_num_shots(distance_to_hole, skill):
     max_distance = 200 + skill
-    distance_groups = [0, 20, 100] + ([(200 + skill - 20) * i for i in range(10)])
+    distance_groups = [20, 100] + ([(200 + skill - 20) * i for i in range(10)])
     for i in range(len(distance_groups)):
         if int(distance_to_hole) <= distance_groups[i]:
             dg = i
             break
-
-    if dg != 0:
+    if dg == 0:
+        next_min = 0
+    else:
         next_min = distance_groups[dg-1]
-        decimal = (distance_to_hole - next_min) / (distance_groups[dg] - next_min)
-        dg += decimal
+    decimal = (distance_to_hole - next_min) / (distance_groups[dg] - next_min)
+    dg += decimal
+    dg+=1
     return dg
 
 
