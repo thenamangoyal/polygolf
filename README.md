@@ -12,6 +12,7 @@ Install simulator packages only
 
 ```bash
 pip install -r requirements.txt
+bash conda_requirements.sh
 ```
 
 Install map generation packages. Note the `--user` option to avoid conflicts with system packages

@@ -1,0 +1,1 @@
+conda install -y scikit-geometry -c conda-forge
