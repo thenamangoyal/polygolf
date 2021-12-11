@@ -184,7 +184,7 @@ class Player:
                 new_distance, new_angle = self.find_shot(distance, angle-angle_adjusted, point, isPutt)
             angle_adjusted += sympy.pi/18
             if angle_adjusted == sympy.pi:
-                print("Edge Case Hitted: Cannot find angle to shoot more than 0.5 of max distance.")
+                self.logger.error("Edge Case Hitted: Cannot find angle to shoot more than 0.5 of max distance.")
                 break
         return new_distance, new_angle
 
