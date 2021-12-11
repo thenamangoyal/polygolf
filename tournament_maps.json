@@ -9,7 +9,9 @@
         "maps/g7/test3.json"
     ],
     "g1": [
-        "maps/g1/g1_back.json"
+        "maps/g1/g1_back.json",
+        "maps/g1/g1_map.json",
+        "maps/g1/g1_map2.json"
     ],
     "g2": [
         "maps/g2/longshot_par3.json",
