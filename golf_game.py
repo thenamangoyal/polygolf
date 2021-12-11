@@ -100,7 +100,7 @@ class GolfGame:
         self.processing_turn = False
         self.end_message_printed = False
 
-        self.__add_players(player_list)
+        self.__add_players(player_list, args.skill)
         self.next_player = self.__assign_next_player()
 
         if self.use_gui:
@@ -126,7 +126,7 @@ class GolfGame:
     def get_current_player_idx(self):
         return self.next_player
 
-    def __add_players(self, player_list):
+    def __add_players(self, player_list, skill=None):
         player_count = dict()
         for player_name in player_list:
             if player_name not in player_count:
@@ -144,15 +144,16 @@ class GolfGame:
                     base_player_name = "Group {}".format(player_name)
                 count_used[player_name] += 1
                 if player_count[player_name] == 1:
-                    self.__add_player(player_class, "{}".format(base_player_name), base_player_name=base_player_name)
+                    self.__add_player(player_class, "{}".format(base_player_name), base_player_name=base_player_name, skill=skill)
                 else:
-                    self.__add_player(player_class, "{}.{}".format(base_player_name, count_used[player_name]), base_player_name=base_player_name)
+                    self.__add_player(player_class, "{}.{}".format(base_player_name, count_used[player_name]), base_player_name=base_player_name, skill=skill)
             else:
                 self.logger.error("Failed to insert player {} since invalid player name provided.".format(player_name))
 
-    def __add_player(self, player_class, player_name, base_player_name):
+    def __add_player(self, player_class, player_name, base_player_name, skill=None):
         if player_name not in self.player_names:
-            skill = self.rng.integers(constants.min_skill, constants.max_skill+1)
+            if skill is None or skill < constants.min_skill or skill > constants.max_skill:
+                skill = self.rng.integers(constants.min_skill, constants.max_skill+1)
             self.logger.info("Adding player {} from class {} with skill {}".format(player_name, player_class.__module__, skill))
             precomp_dir = os.path.join("precomp", base_player_name)
             if not os.path.isdir(precomp_dir):

@@ -7,6 +7,7 @@ from golf_game import GolfGame
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--map", "-m", default=constants.default_map, help="Path to map json file")
+    parser.add_argument("--skill", type=int, help="Skill to use, don't specify to randomly choose between min and max")
     parser.add_argument("--automatic", action="store_true", help="Start playing automatically in GUI mode")
     parser.add_argument("--seed", "-s", type=int, default=2, help="Seed used by random number generator, specify 0 to use no seed and have different random behavior on each launch")
     parser.add_argument("--port", type=int, default=8080, help="Port to start, specify -1 to auto-assign")
