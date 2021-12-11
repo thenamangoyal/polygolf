@@ -159,10 +159,25 @@ class GolfGame:
             if not os.path.isdir(precomp_dir):
                 os.makedirs(precomp_dir)
             player_map_path = slugify(self.golf.map_filepath)
-            start_time = time.time()
-            player = player_class(skill=skill, rng=self.rng, logger=self.__get_player_logger(player_name), golf_map=self.golf.golf_map.copy(), start=self.golf.start.copy(), target=self.golf.target.copy(), map_path=player_map_path, precomp_dir=precomp_dir)
+
+            is_timeout = False
+            if self.use_timeout:
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(constants.timeout)
+            try:
+                start_time = time.time()
+                player = player_class(skill=skill, rng=self.rng, logger=self.__get_player_logger(player_name), golf_map=self.golf.golf_map.copy(), start=self.golf.start.copy(), target=self.golf.target.copy(), map_path=player_map_path, precomp_dir=precomp_dir)
+                if self.use_timeout:
+                    signal.alarm(0)      # Clear alarm
+            except TimeoutException:
+                is_timeout = True
+                player = None
+                self.logger.error("Initialization Timeout {} since {:.3f}s reached.".format(player_name, constants.timeout))
+
             init_time = time.time() - start_time
-            self.logger.info("Initializing player {} took {:.3f}s".format(player_name, init_time))
+            
+            if not is_timeout:
+                self.logger.info("Initializing player {} took {:.3f}s".format(player_name, init_time))
             self.players.append(player)
             self.player_names.append(player_name)
             self.skills.append(skill)
@@ -174,6 +189,12 @@ class GolfGame:
             self.time_taken.append([init_time])
             self.timeout_count.append(0)
             self.error_count.append(0)
+            
+            if is_timeout:
+                player_idx = len(self.players) - 1
+                self.timeout_count[player_idx] += 1
+                self.player_states[player_idx] = "F"
+                self.scores[player_idx] = constants.max_tries
         else:
             self.logger.error("Failed to insert player as another player with name {} exists.".format(player_name))
 
