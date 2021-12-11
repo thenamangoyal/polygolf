@@ -1,4 +1,9 @@
 {
+    "default": [
+        "maps/g9/layup.json",
+        "maps/g7/complex2.json",
+        "maps/tournament/putter.json"
+    ],
     "g1": [
         "maps/g1/g1_back.json"
     ],
@@ -22,14 +27,12 @@
         "maps/g6/final_map.json"
     ],
     "g7": [
-        "maps/g7/g7_final_map.json",
-        "maps/g7/complex2.json"
+        "maps/g7/g7_final_map.json"
     ],
     "g8": [
         "maps/g8/g8FinalMap.json"
     ],
     "g9": [
-        "maps/g9/g9_tournament.json",
-        "maps/g9/layup.json"
+        "maps/g9/g9_tournament.json"
     ]
 }
