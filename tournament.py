@@ -17,7 +17,7 @@ def generate_args(map, skill, log_path, seed):
 def worker(config):
     global RESULT_DIR, extra_df_cols
     log_path = None
-    args = generate_args(map=config["map"], skill= config["skill"], log_path=log_path, seed=config["seed"])
+    args = generate_args(map=config["map"], skill=config["skill"], log_path=log_path, seed=config["seed"])
     golf_game = GolfGame(player_list=config["player_list"], args=args)
     golf_game.play_all()
     result = golf_game.get_state()
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         config = base_config.copy()
         config["seed"] = seeds[i]
         tournament_configs.append(config)
-    
+
     out_fn = os.path.join(RESULT_DIR, "aggregate_results.csv")
     with open(out_fn, "w") as csvf:
         header_df = pd.DataFrame([], columns=all_df_cols)
