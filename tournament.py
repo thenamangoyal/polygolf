@@ -42,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed_entropy", "-s", type=int, help="Seed used to generate seed for each game")
     parser.add_argument("--trials", "-t", default=5, type=int, help="Number of trials for each config")
     parser.add_argument("--maps", "-m", default="tournament_maps.json", help="Json for tournament maps")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
     args = parser.parse_args()
     RESULT_DIR = args.result_dir
     os.makedirs(RESULT_DIR, exist_ok=True)
@@ -109,7 +110,8 @@ if __name__ == "__main__":
                     errors += 1
                     print("Error processing config", file=sys.stderr)
                     print(config, file=sys.stderr)
-                    print(tb, file=sys.stderr)
+                    if args.verbose:
+                        print(tb, file=sys.stderr)
                     with open(os.path.join(err_dir, "err{}.txt".format(errors)), "w") as ef:
                         ef.write("Error processing config")
                         ef.write("\n")
