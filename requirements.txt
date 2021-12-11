@@ -9,4 +9,3 @@ shapely
 numba
 typing
 dijkstar
-skgeom
