@@ -100,7 +100,7 @@ class GolfGame:
         self.processing_turn = False
         self.end_message_printed = False
 
-        self.__add_players(player_list)
+        self.__add_players(player_list, args.skill)
         self.next_player = self.__assign_next_player()
 
         if self.use_gui:
@@ -126,7 +126,7 @@ class GolfGame:
     def get_current_player_idx(self):
         return self.next_player
 
-    def __add_players(self, player_list):
+    def __add_players(self, player_list, skill=None):
         player_count = dict()
         for player_name in player_list:
             if player_name not in player_count:
@@ -144,24 +144,40 @@ class GolfGame:
                     base_player_name = "Group {}".format(player_name)
                 count_used[player_name] += 1
                 if player_count[player_name] == 1:
-                    self.__add_player(player_class, "{}".format(base_player_name), base_player_name=base_player_name)
+                    self.__add_player(player_class, "{}".format(base_player_name), base_player_name=base_player_name, skill=skill)
                 else:
-                    self.__add_player(player_class, "{}.{}".format(base_player_name, count_used[player_name]), base_player_name=base_player_name)
+                    self.__add_player(player_class, "{}.{}".format(base_player_name, count_used[player_name]), base_player_name=base_player_name, skill=skill)
             else:
                 self.logger.error("Failed to insert player {} since invalid player name provided.".format(player_name))
 
-    def __add_player(self, player_class, player_name, base_player_name):
+    def __add_player(self, player_class, player_name, base_player_name, skill=None):
         if player_name not in self.player_names:
-            skill = self.rng.integers(constants.min_skill, constants.max_skill+1)
+            if skill is None or skill < constants.min_skill or skill > constants.max_skill:
+                skill = self.rng.integers(constants.min_skill, constants.max_skill+1)
             self.logger.info("Adding player {} from class {} with skill {}".format(player_name, player_class.__module__, skill))
             precomp_dir = os.path.join("precomp", base_player_name)
             if not os.path.isdir(precomp_dir):
                 os.makedirs(precomp_dir)
             player_map_path = slugify(self.golf.map_filepath)
-            start_time = time.time()
-            player = player_class(skill=skill, rng=self.rng, logger=self.__get_player_logger(player_name), golf_map=self.golf.golf_map.copy(), start=self.golf.start.copy(), target=self.golf.target.copy(), map_path=player_map_path, precomp_dir=precomp_dir)
+
+            is_timeout = False
+            if self.use_timeout:
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(constants.timeout)
+            try:
+                start_time = time.time()
+                player = player_class(skill=skill, rng=self.rng, logger=self.__get_player_logger(player_name), golf_map=self.golf.golf_map.copy(), start=self.golf.start.copy(), target=self.golf.target.copy(), map_path=player_map_path, precomp_dir=precomp_dir)
+                if self.use_timeout:
+                    signal.alarm(0)      # Clear alarm
+            except TimeoutException:
+                is_timeout = True
+                player = None
+                self.logger.error("Initialization Timeout {} since {:.3f}s reached.".format(player_name, constants.timeout))
+
             init_time = time.time() - start_time
-            self.logger.info("Initializing player {} took {:.3f}s".format(player_name, init_time))
+            
+            if not is_timeout:
+                self.logger.info("Initializing player {} took {:.3f}s".format(player_name, init_time))
             self.players.append(player)
             self.player_names.append(player_name)
             self.skills.append(skill)
@@ -173,6 +189,12 @@ class GolfGame:
             self.time_taken.append([init_time])
             self.timeout_count.append(0)
             self.error_count.append(0)
+            
+            if is_timeout:
+                player_idx = len(self.players) - 1
+                self.timeout_count[player_idx] += 1
+                self.player_states[player_idx] = "F"
+                self.scores[player_idx] = constants.max_tries
         else:
             self.logger.error("Failed to insert player as another player with name {} exists.".format(player_name))
 
@@ -352,7 +374,7 @@ class GolfGame:
             return False
         is_valid = False
         if isiterable(returned_action) and count_iterable(returned_action) == 2:
-            if np.all([sympy.simplify(x).is_real for x in returned_action]):
+            if np.all([x is not None and sympy.simplify(x).is_real for x in returned_action]):
                 is_valid = True
 
         return is_valid

@@ -249,10 +249,8 @@ class Player:
             if next_sp.actual_cost > 10:
                 continue
             if next_sp.actual_cost > 0 and not self.splash_zone_within_polygon(next_sp.previous.point, next_p, conf):
-                try:
+                if next_p in best_cost:
                     del best_cost[next_p]
-                except KeyError:
-                    pass
                 continue
             visited.add(next_p)
 

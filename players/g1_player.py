@@ -333,5 +333,5 @@ class Player:
                 if(required_dist>20):
                     required_dist = 0.9*required_dist
             self.turns = self.turns +1  
-            print(next_point)
+            self.logger.info(next_point)
             return (required_dist, angle)

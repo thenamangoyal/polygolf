@@ -12,6 +12,7 @@ Install simulator packages only
 
 ```bash
 pip install -r requirements.txt
+bash conda_requirements.sh
 ```
 
 Install map generation packages. Note the `--user` option to avoid conflicts with system packages
@@ -57,14 +58,16 @@ optional arguments:
 You can also specify the optional parameters below to disable GUI, disable browser launching, change port and address of server.
 
 ```bash
-usage: main.py [-h] [--map MAP] [--automatic] [--seed SEED] [--port PORT]
-               [--address ADDRESS] [--no_browser] [--no_gui]
+usage: main.py [-h] [--map MAP] [--skill SKILL] [--automatic] [--seed SEED]
+               [--port PORT] [--address ADDRESS] [--no_browser] [--no_gui]
                [--log_path LOG_PATH] [--disable_timeout] [--disable_logging]
                [--players PLAYERS [PLAYERS ...]]
 
 optional arguments:
   -h, --help            show this help message and exit
   --map MAP, -m MAP     Path to map json file
+  --skill SKILL         Skill to use, don't specify to randomly choose between
+                        min and max
   --automatic           Start playing automatically in GUI mode
   --seed SEED, -s SEED  Seed used by random number generator, specify 0 to use
                         no seed and have different random behavior on each

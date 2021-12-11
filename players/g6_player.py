@@ -308,7 +308,10 @@ class Player:
                                     # delta x
                                     d_x = inter_1[0] - inter_0[0]
 
-                                    theta = math.atan(d_y / d_x)
+                                    if d_x == 0:
+                                        theta = np.sign(d_y) * math.pi / 2
+                                    else:
+                                        theta = math.atan(d_y / d_x)
 
                                     hyp = distance*0.2
                                     bridge_0_count = 0
@@ -387,7 +390,10 @@ class Player:
                                     # delta x
                                     d_x = inter_1[0] - inter_0[0]
 
-                                    theta = math.atan(d_y / d_x)
+                                    if d_x == 0:
+                                        theta = np.sign(d_y) * math.pi / 2
+                                    else:
+                                        theta = math.atan(d_y / d_x)
 
                                     hyp = distance*0.2
                                     bridge_0_count = 0
