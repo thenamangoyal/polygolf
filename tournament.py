@@ -88,6 +88,10 @@ if __name__ == "__main__":
 
     out_fn = os.path.join(RESULT_DIR, "aggregate_results.csv")
     
+    precomp_dir = os.path.join("precomp")
+    if os.path.isdir(precomp_dir):
+        shutil.rmtree(precomp_dir)
+    
     err_dir = os.path.join(RESULT_DIR, "errors")
     if os.path.isdir(err_dir):
         shutil.rmtree(err_dir)

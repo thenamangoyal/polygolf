@@ -156,8 +156,7 @@ class GolfGame:
                 skill = self.rng.integers(constants.min_skill, constants.max_skill+1)
             self.logger.info("Adding player {} from class {} with skill {}".format(player_name, player_class.__module__, skill))
             precomp_dir = os.path.join("precomp", base_player_name)
-            if not os.path.isdir(precomp_dir):
-                os.makedirs(precomp_dir)
+            os.makedirs(precomp_dir, exists_ok=True)
             player_map_path = slugify(self.golf.map_filepath)
 
             is_timeout = False
