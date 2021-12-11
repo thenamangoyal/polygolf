@@ -37,10 +37,10 @@ if __name__ == "__main__":
     os.makedirs(RESULT_DIR, exist_ok=True)
 
     PLAYERS_LIST = list(map(str, range(1, 10)))
+    SKILLS = [10, 40, 70, 100]
     TRIALS = args.trials
     with open(args.maps, "r") as f:
         map_dict = json.load(f)
-    SKILLS = [10, 40, 70, 100]
     MAPS = list(itertools.chain.from_iterable(map_dict.values()))
     extra_df_cols = ["trial", "seed"]
     all_df_cols = extra_df_cols+return_vals
@@ -50,8 +50,8 @@ if __name__ == "__main__":
     with open(os.path.join(RESULT_DIR, "config.txt"), "w") as f:
         f.write("Seed entropy {}\n".format(seed_sequence.entropy))
         f.write("Players {}\n".format(PLAYERS_LIST))
-        f.write("Trials {}\n".format(TRIALS))
         f.write("Skills {}\n".format(SKILLS))
+        f.write("Trials {}\n".format(TRIALS))
         f.write("Maps\n{}\n".format(MAPS))
 
     base_tournament_configs = []
