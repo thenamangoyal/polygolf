@@ -2,7 +2,8 @@
     "default": [
         "maps/g9/layup.json",
         "maps/g7/complex2.json",
-        "maps/tournament/putter.json"
+        "maps/tournament/putter.json",
+        "maps/tournament/horseshoe.json"
     ],
     "g1": [
         "maps/g1/g1_back.json"
