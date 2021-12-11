@@ -146,9 +146,9 @@ class LandingPoint(object):
         return point.within(polygon)
 
     def confidence(self, polygon, skill, rng):
-        try:
+        if hasattr(self, 'shot_confidence'):
             return self.shot_confidence
-        except AttributeError:
+        else:
             intended_distance = self.distance_from_origin
             intended_angle = self.angle_from_origin
             successful = 0
