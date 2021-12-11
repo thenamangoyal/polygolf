@@ -1,4 +1,6 @@
+import sys
 import os
+import shutil
 import json
 import argparse
 import numpy as np
@@ -7,6 +9,7 @@ import itertools
 from tqdm import tqdm
 from golf_game import GolfGame, return_vals
 from multiprocessing import Pool
+import traceback
 
 
 def generate_args(map, skill, log_path, seed):
@@ -24,6 +27,13 @@ def worker(config):
     for df_col in extra_df_cols:
         result[df_col] = config[df_col]
     return result
+
+def worker_exc(config):
+    try:
+        return (None, None, worker(config))
+    except Exception as e:
+        tb = traceback.format_exc()
+        return (e, tb, config)
 
 
 if __name__ == "__main__":
@@ -77,12 +87,35 @@ if __name__ == "__main__":
         tournament_configs.append(config)
 
     out_fn = os.path.join(RESULT_DIR, "aggregate_results.csv")
+    
+    err_dir = os.path.join(RESULT_DIR, "errors")
+    if os.path.isdir(err_dir):
+        shutil.rmtree(err_dir)
+    os.makedirs(err_dir)
+
     with open(out_fn, "w") as csvf:
         header_df = pd.DataFrame([], columns=all_df_cols)
         header_df.to_csv(csvf, index=False, header=True)
         csvf.flush()
+        errors = 0
         with Pool() as p:
-            for result in tqdm(p.imap(worker, tournament_configs), total=len(tournament_configs)):
-                df = pd.DataFrame([result], columns=all_df_cols)
-                df.to_csv(csvf, index=False, header=False)
-                csvf.flush()
+            for exc, tb, result in tqdm(p.imap(worker_exc, tournament_configs), total=len(tournament_configs)):
+                if exc is not None:
+                    # handle exception
+                    errors += 1
+                    print("Error processing config", file=sys.stderr)
+                    print(config, file=sys.stderr)
+                    print(tb, file=sys.stderr)
+                    with open(os.path.join(err_dir, "err{}.txt".format(errors)), "w") as ef:
+                        ef.write("Error processing config")
+                        ef.write("\n")
+                        ef.write(str(config))
+                        ef.write("\n")
+                        ef.write(tb)
+                        ef.write("\n")
+
+                else:
+                    df = pd.DataFrame([result], columns=all_df_cols)
+                    df.to_csv(csvf, index=False, header=False)
+                    csvf.flush()
+        print("Completed with {} errors".format(errors))
