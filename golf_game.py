@@ -374,7 +374,7 @@ class GolfGame:
             return False
         is_valid = False
         if isiterable(returned_action) and count_iterable(returned_action) == 2:
-            if np.all([sympy.simplify(x).is_real for x in returned_action]):
+            if np.all([x is not None and sympy.simplify(x).is_real for x in returned_action]):
                 is_valid = True
 
         return is_valid
