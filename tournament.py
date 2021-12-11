@@ -99,29 +99,32 @@ if __name__ == "__main__":
     os.makedirs(err_dir)
 
     with open(out_fn, "w") as csvf:
-        header_df = pd.DataFrame([], columns=all_df_cols)
-        header_df.to_csv(csvf, index=False, header=True)
-        csvf.flush()
-        errors = 0
-        with Pool() as p:
-            for exc, tb, result in tqdm(p.imap(worker_exc, tournament_configs), total=len(tournament_configs)):
-                if exc is not None:
-                    # handle exception
-                    errors += 1
-                    print("Error processing config", file=sys.stderr)
-                    print(config, file=sys.stderr)
-                    if args.verbose:
-                        print(tb, file=sys.stderr)
-                    with open(os.path.join(err_dir, "err{}.txt".format(errors)), "w") as ef:
-                        ef.write("Error processing config")
-                        ef.write("\n")
-                        ef.write(str(config))
-                        ef.write("\n")
-                        ef.write(tb)
-                        ef.write("\n")
+        with open(os.path.join(err_dir, "all_errors.txt"), "w") as all_ef:
+            header_df = pd.DataFrame([], columns=all_df_cols)
+            header_df.to_csv(csvf, index=False, header=True)
+            csvf.flush()
+            errors = 0
+            with Pool() as p:
+                for exc, tb, result in tqdm(p.imap(worker_exc, tournament_configs), total=len(tournament_configs)):
+                    if exc is not None:
+                        # handle exception
+                        errors += 1
+                        print("Error processing config", file=sys.stderr)
+                        print(config, file=sys.stderr)
+                        if args.verbose:
+                            print(tb, file=sys.stderr)
+                        all_ef.write(str(config))
+                        all_ef.write("\n")
+                        with open(os.path.join(err_dir, "error_{}.txt".format(errors)), "w") as ef:
+                            ef.write("Error processing config")
+                            ef.write("\n")
+                            ef.write(str(config))
+                            ef.write("\n")
+                            ef.write(tb)
+                            ef.write("\n")
 
-                else:
-                    df = pd.DataFrame([result], columns=all_df_cols)
-                    df.to_csv(csvf, index=False, header=False)
-                    csvf.flush()
+                    else:
+                        df = pd.DataFrame([result], columns=all_df_cols)
+                        df.to_csv(csvf, index=False, header=False)
+                        csvf.flush()
         print("Completed with {} errors".format(errors))
