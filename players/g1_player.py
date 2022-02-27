@@ -141,14 +141,14 @@ class Player:
             if self.mpl_poly.contains_point(point):
                 # map_points.append(point)
                 x, y = point
-                np_map_points.append(np.array([x, y]))
-        # self.map_points = np.array(map_points)
-        self.np_map_points = np.array(np_map_points)
-        self.np_goal_dist = cdist(self.np_map_points, np.array([np.array(self.target)]), 'euclidean')
+                np_map_points.append(np.array([x, y]).astype(float))
+        # self.map_points = np.array(map_points).astype(float)
+        self.np_map_points = np.array(np_map_points).astype(float)
+        self.np_goal_dist = cdist(self.np_map_points, np.array([np.array(self.target).astype(float)]).astype(float), 'euclidean')
         self.np_goal_dist.flatten()
 
     def numpy_adjacent_and_dist(self, point: Tuple[float, float]):
-        cloc_distances = cdist(self.np_map_points, np.array([np.array(point)]), 'euclidean')
+        cloc_distances = cdist(self.np_map_points, np.array([np.array(point).astype(float)]).astype(float), 'euclidean')
         cloc_distances = cloc_distances.flatten()
         distance_mask = cloc_distances <= self.max_distance
         reachable_points = self.np_map_points[distance_mask]
