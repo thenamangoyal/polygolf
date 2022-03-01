@@ -1,8 +1,17 @@
-# polygolf
+# Project 4: Polygolf
 
-Project 4 Polygolf - COMS 4444 Fall 2021 Programming and Problem Solving
+## Course Summary
 
-<http://www.cs.columbia.edu/~kar/4444f21/node21.html>
+Course: COMS 4444 Programming and Problem Solving (Fall 2021)  
+Problem Description: http://www.cs.columbia.edu/~kar/4444f21/node18.html \
+Course Website: http://www.cs.columbia.edu/~kar/4444f21  
+University: Columbia University  
+Instructor: Prof. Kenneth Ross  
+TA Designer for this project: Naman Goyal
+
+Teaching Assistants for Course:
+1. Griffin Adams
+1. Naman Goyal
 
 ## Installation
 
@@ -89,3 +98,6 @@ optional arguments:
 ## Debugging
 
 The code generates a `log/debug.log` (detailed), `log/results.log` (minimal) and `log\<player_name>.log` (logs from player) on every execution, detailing all the turns and steps in the game.
+
+## Disclaimer
+This project belongs to Department of Computer Science, Columbia University. It may be freely used for educational purposes with proper attribution.
