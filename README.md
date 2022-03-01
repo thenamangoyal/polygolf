@@ -1,17 +1,30 @@
 # Project 4: Polygolf
 
-## Course Summary
+## Citation and License
+This project belongs to Department of Computer Science, Columbia University. It may be used for educational purposes under Creative Commons **with proper attribution and citation** for the Authors i.e TAs Griffin Adams, Naman Goyal and the Instructor - Prof. Kenneth Ross.
+
+## Summary
 
 Course: COMS 4444 Programming and Problem Solving (Fall 2021)  
-Problem Description: http://www.cs.columbia.edu/~kar/4444f21/node18.html \
+Problem Description: http://www.cs.columbia.edu/~kar/4444f21/node21.html  
 Course Website: http://www.cs.columbia.edu/~kar/4444f21  
 University: Columbia University  
 Instructor: Prof. Kenneth Ross  
-TA Designer for this project: Naman Goyal
+Project Language: Python
 
-Teaching Assistants for Course:
+### TA Designer for this project
+
+Naman Goyal
+
+### Teaching Assistants for Course
 1. Griffin Adams
 1. Naman Goyal
+
+### All course projects
+Project 1: https://github.com/griff4692/chemotaxis  
+Project 2: https://github.com/thenamangoyal/icecream  
+Project 3: https://github.com/griff4692/coms4444_flowers/  
+Project 4: https://github.com/thenamangoyal/polygolf  
 
 ## Installation
 
@@ -98,6 +111,3 @@ optional arguments:
 ## Debugging
 
 The code generates a `log/debug.log` (detailed), `log/results.log` (minimal) and `log\<player_name>.log` (logs from player) on every execution, detailing all the turns and steps in the game.
-
-## Disclaimer
-This project belongs to Department of Computer Science, Columbia University. It may be freely used for educational purposes with proper attribution.
